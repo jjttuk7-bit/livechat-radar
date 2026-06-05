@@ -711,7 +711,7 @@ export default function App() {
         </section>
 
         {/* CENTER PANEL: Dashboard Grid / Metrics (col-span-6) */}
-        <section className="lg:col-span-6 flex flex-col gap-4 overflow-y-auto max-h-full pr-1">
+        <section className="lg:col-span-6 min-w-0 flex flex-col gap-4 overflow-y-auto max-h-full pr-1">
           
           {/* TOP Level Performance/Sought KPIs */}
           <div className="grid grid-cols-3 gap-3 shrink-0">
@@ -860,7 +860,7 @@ export default function App() {
           </div>
 
           {/* B-4: 시간축 분석 대시보드 (CPM · 정서 · 카테고리 추이) */}
-          <div className="shrink-0">
+          <div className="shrink-0 w-full min-w-0">
             <TimelineDashboard
               cpmHistory={cpmHistory}
               sentimentHistory={sentimentHistory}

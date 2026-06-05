@@ -75,10 +75,10 @@ const ChartFrame: React.FC<{
   children: React.ReactNode;
 }> = ({ title, Icon, iconColor, children }) => (
   // Fixed-pixel height on the chart wrapper. Recharts ResponsiveContainer
-  // needs a parent with an explicitly resolved height; flex-1 + min-h inside
-  // a flex/grid ancestor causes it to measure as -1, which can collapse the
-  // whole analysis panel.
-  <div className="flex flex-col bg-slate-950/40 border border-slate-800 rounded-lg p-3">
+  // needs a parent with an explicitly resolved height AND a non-zero width.
+  // `min-w-0` on the grid-item so its child can shrink below the implicit
+  // min-content; `h-[160px] w-full` on the inner box for a concrete box model.
+  <div className="min-w-0 flex flex-col bg-slate-950/40 border border-slate-800 rounded-lg p-3">
     <div className="flex items-center gap-2 mb-2">
       <Icon size={14} className={iconColor} />
       <span className="text-[11px] font-semibold text-slate-300 font-sans uppercase tracking-wide">{title}</span>
@@ -109,7 +109,7 @@ export const TimelineDashboard: React.FC<TimelineDashboardProps> = ({
   return (
     <div
       id="timeline-dashboard"
-      className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 shadow-lg relative overflow-hidden group"
+      className="w-full min-w-0 bg-slate-900/80 border border-slate-800 rounded-xl p-5 shadow-lg relative overflow-hidden group"
     >
       {/* Glow decoration */}
       <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-2xl group-hover:bg-cyan-500/10 transition-all duration-500"></div>
@@ -137,7 +137,7 @@ export const TimelineDashboard: React.FC<TimelineDashboardProps> = ({
           {cpmData.length === 0 ? (
             <EmptyHint message="실시간 댓글이 쌓이면 CPM 추이가 그려집니다." />
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={50}>
               <LineChart data={cpmData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
                 <CartesianGrid stroke={COLOR.grid} strokeOpacity={0.3} strokeDasharray="2 3" />
                 <XAxis dataKey="time" stroke={COLOR.axis} tick={{ fontSize: 9 }} interval="preserveStartEnd" />
@@ -154,7 +154,7 @@ export const TimelineDashboard: React.FC<TimelineDashboardProps> = ({
           {sentimentData.length === 0 ? (
             <EmptyHint message="AI 분석 결과가 누적되면 정서 추이가 그려집니다." />
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={50}>
               <AreaChart data={sentimentData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }} stackOffset="expand">
                 <CartesianGrid stroke={COLOR.grid} strokeOpacity={0.3} strokeDasharray="2 3" />
                 <XAxis dataKey="time" stroke={COLOR.axis} tick={{ fontSize: 9 }} interval="preserveStartEnd" />
@@ -174,7 +174,7 @@ export const TimelineDashboard: React.FC<TimelineDashboardProps> = ({
           {categoryData.length === 0 ? (
             <EmptyHint message="AI 분석 결과가 누적되면 카테고리 추이가 그려집니다." />
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={50}>
               <LineChart data={categoryData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
                 <CartesianGrid stroke={COLOR.grid} strokeOpacity={0.3} strokeDasharray="2 3" />
                 <XAxis dataKey="time" stroke={COLOR.axis} tick={{ fontSize: 9 }} interval="preserveStartEnd" />
