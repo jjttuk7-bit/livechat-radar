@@ -80,6 +80,12 @@ export default function App() {
   const autoAnalyzeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const lastAnalyzedCountRef = useRef<number>(0);
+  // Mirror of isPolling state. setState updates are async, so the closure
+  // captured by pullBatch sees the stale initial false. Use ref for the
+  // re-enqueue guard so polling actually continues after the first batch.
+  const isPollingRef = useRef<boolean>(false);
+  // Same reason: pollingRate updates need to be visible to the running loop.
+  const pollingRateRef = useRef<number>(3000);
 
   // Track chat feed height scroll behavior
   const [chatAutoScroll, setChatAutoScroll] = useState<boolean>(true);
@@ -261,6 +267,7 @@ export default function App() {
 
   // Start the polling cycle for live chats
   const startCommentStream = (chatId: string) => {
+    isPollingRef.current = true;
     setIsPolling(true);
     let currentToken: string | null = null;
 
@@ -317,14 +324,15 @@ export default function App() {
 
         // Adjust rate according to YouTube API recommendations
         if (result.pollingIntervalMillis) {
+          pollingRateRef.current = result.pollingIntervalMillis;
           setPollingRate(result.pollingIntervalMillis);
         }
       } catch (e) {
         console.error('Polling tick failure:', e);
       } finally {
-        // Enqueue next loop iteration
-        if (isPolling) {
-          pollingTimerRef.current = setTimeout(pullBatch, pollingRate);
+        // Enqueue next loop iteration. Use ref to avoid stale-closure isPolling.
+        if (isPollingRef.current) {
+          pollingTimerRef.current = setTimeout(pullBatch, pollingRateRef.current);
         }
       }
     };
@@ -334,6 +342,7 @@ export default function App() {
   };
 
   const stopCommentStream = () => {
+    isPollingRef.current = false;
     setIsPolling(false);
     if (pollingTimerRef.current) {
       clearTimeout(pollingTimerRef.current);
