@@ -6,7 +6,6 @@
 import express from 'express';
 import path from 'path';
 import crypto from 'crypto';
-import { createServer as createViteServer } from 'vite';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import {
@@ -748,6 +747,7 @@ ${serializedComments}`;
 // Setup Vite Dev server middleware or static serve in production
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -766,4 +766,11 @@ async function startServer() {
   });
 }
 
-startServer();
+// Only auto-start when run directly (local dev / node start).
+// On Vercel, api/index.ts imports `app` without triggering listen.
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
+export { app };
