@@ -86,6 +86,12 @@ export default function App() {
   const isPollingRef = useRef<boolean>(false);
   // Same reason: pollingRate updates need to be visible to the running loop.
   const pollingRateRef = useRef<number>(3000);
+  // Mirrors for the 40s auto-analyze interval callback: must see the latest
+  // message count, analyzing state, and runAIAnalysis closure without
+  // re-creating the interval on every render.
+  const messagesCountRef = useRef<number>(0);
+  const isAnalyzingRef = useRef<boolean>(false);
+  const runAIAnalysisRef = useRef<() => void>(() => {});
 
   // Track chat feed height scroll behavior
   const [chatAutoScroll, setChatAutoScroll] = useState<boolean>(true);
@@ -173,29 +179,42 @@ export default function App() {
     });
   }, [analysis]);
 
+  // Keep refs in sync with state so the 40s interval can read latest values.
+  useEffect(() => { messagesCountRef.current = messages.length; }, [messages.length]);
+  useEffect(() => { isAnalyzingRef.current = isAnalyzing; }, [isAnalyzing]);
+  useEffect(() => { runAIAnalysisRef.current = runAIAnalysis; });
+
   // 2. Automated AI Analysis trigger periodically (Every 40 seconds if new comments exist)
+  // deps intentionally only on (isPolling, autoAnalysisEnabled) so the 40s
+  // interval is registered once per session and is NOT reset every time a new
+  // comment arrives. The interval callback reads messagesCountRef /
+  // isAnalyzingRef / runAIAnalysisRef to always see the latest values.
   useEffect(() => {
-    if (isPolling && autoAnalysisEnabled && messages.length > 0) {
-      // Run initial check if we haven't analyzed or if messages grew considerably
-      if (!analysis && !isAnalyzing) {
-        runAIAnalysis();
-      }
+    if (!isPolling || !autoAnalysisEnabled) return;
 
-      autoAnalyzeTimerRef.current = setInterval(() => {
-        const newMessagesCount = messages.length - lastAnalyzedCountRef.current;
-        // Run analysis if there are at least 5 new messages and we are not currently analyzing
-        if (newMessagesCount >= 5 && !isAnalyzing) {
-          runAIAnalysis();
-        }
-      }, 40000);
-    }
-
-    return () => {
-      if (autoAnalyzeTimerRef.current) {
-        clearInterval(autoAnalyzeTimerRef.current);
+    // Fire an initial analysis as soon as enough messages have buffered.
+    const tryInitial = () => {
+      if (messagesCountRef.current > 0 && !isAnalyzingRef.current) {
+        runAIAnalysisRef.current();
       }
     };
-  }, [isPolling, autoAnalysisEnabled, messages.length, isAnalyzing]);
+    // Wait one tick to let the first message batch land before initial fire.
+    const initialTimer = setTimeout(tryInitial, 1500);
+
+    const id = setInterval(() => {
+      const newCount = messagesCountRef.current - lastAnalyzedCountRef.current;
+      if (newCount >= 5 && !isAnalyzingRef.current) {
+        runAIAnalysisRef.current();
+      }
+    }, 40000);
+    autoAnalyzeTimerRef.current = id;
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(id);
+      autoAnalyzeTimerRef.current = null;
+    };
+  }, [isPolling, autoAnalysisEnabled]);
 
   // Cleanup polling on unmount
   useEffect(() => {
