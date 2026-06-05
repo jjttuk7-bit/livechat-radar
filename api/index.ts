@@ -1,4 +1,4 @@
-import app from '../server';
+import app from '../server.js';
 
 // Vercel rewrites /api/* requests to this handler. Express routes in server.ts
 // are defined with the literal `/api/...` prefix, so we restore the original

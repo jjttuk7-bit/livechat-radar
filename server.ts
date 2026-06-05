@@ -13,7 +13,7 @@ import {
   STATIC_REPORT_SYSTEM_PROMPT,
   analyzeJsonSchema,
   reportJsonSchema,
-} from './src/prompts';
+} from './src/prompts.js';
 
 // Load environment variables
 dotenv.config();
