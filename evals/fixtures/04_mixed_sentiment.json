@@ -1,0 +1,29 @@
+{
+  "name": "mixed_sentiment",
+  "description": "긍정/중립/부정 균형 분포. 어떤 카테고리도 절대 우세 없음.",
+  "streamTitle": "🎬 [영화리뷰] 신작 개봉 첫주 시청자 반응 종합",
+  "messages": [
+    { "id": "x01", "author": "김민수", "message": "이번 영화 진짜 잘 봤어요! 추천합니다!", "timestamp": "2026-06-05T23:00:00Z" },
+    { "id": "x02", "author": "박태형", "message": "음 그냥 그랬어요 기대만큼은 아니었던 듯", "timestamp": "2026-06-05T23:00:05Z" },
+    { "id": "x03", "author": "정수진", "message": "스토리는 별로지만 연출은 좋았다고 생각해요", "timestamp": "2026-06-05T23:00:10Z" },
+    { "id": "x04", "author": "이지혜", "message": "주연배우 연기 짱이었어요", "timestamp": "2026-06-05T23:00:15Z" },
+    { "id": "x05", "author": "최유리", "message": "결말이 좀 아쉽네요 다른 방향이 더 좋았을 듯", "timestamp": "2026-06-05T23:00:20Z" },
+    { "id": "x06", "author": "윤서연", "message": "그래픽 효과는 진짜 압도적이에요", "timestamp": "2026-06-05T23:00:25Z" },
+    { "id": "x07", "author": "강동우", "message": "보통 정도? 인생 영화는 아니에요", "timestamp": "2026-06-05T23:00:30Z" },
+    { "id": "x08", "author": "한상현", "message": "음악 OST 좋아서 따로 찾아 들었어요", "timestamp": "2026-06-05T23:00:35Z" },
+    { "id": "x09", "author": "송지효", "message": "전반부는 좋았는데 후반부가 늘어져요", "timestamp": "2026-06-05T23:00:40Z" },
+    { "id": "x10", "author": "정우진", "message": "두 번 볼 정도는 아닌 것 같네요", "timestamp": "2026-06-05T23:00:45Z" },
+    { "id": "x11", "author": "박지원", "message": "친구들이랑 가서 봤는데 다들 다른 평이라 흥미로웠어요", "timestamp": "2026-06-05T23:00:50Z" },
+    { "id": "x12", "author": "임재범", "message": "영상미는 정말 최고였어요 시각 효과 만족스러워요", "timestamp": "2026-06-05T23:00:55Z" },
+    { "id": "x13", "author": "정상현", "message": "스토리 전개가 좀 뻔하긴 했어요 새로움이 부족", "timestamp": "2026-06-05T23:01:00Z" },
+    { "id": "x14", "author": "마카롱", "message": "결말 해석이 사람마다 다른 게 매력이긴 해요", "timestamp": "2026-06-05T23:01:05Z" },
+    { "id": "x15", "author": "쿠쿠다스", "message": "개인적으로는 만족했어요! 한 번은 볼 만한 영화", "timestamp": "2026-06-05T23:01:10Z" },
+    { "id": "x16", "author": "달빛요정", "message": "기대치가 높았나 봐요 평범했네요", "timestamp": "2026-06-05T23:01:15Z" },
+    { "id": "x17", "author": "Sonia Yang", "message": "감독 전작이 워낙 좋아서 비교가 되네요", "timestamp": "2026-06-05T23:01:20Z" },
+    { "id": "x18", "author": "이도원", "message": "재미는 있는데 깊이가 좀 아쉬워요", "timestamp": "2026-06-05T23:01:25Z" },
+    { "id": "x19", "author": "Harry Park", "message": "OST 진짜 좋다고 생각해요 명불허전!", "timestamp": "2026-06-05T23:01:30Z" }
+  ],
+  "assertions": {
+    "sentiment_max_any_category": 70
+  }
+}

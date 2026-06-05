@@ -1,0 +1,6 @@
+{
+  "name": "LiveChat Radar",
+  "description": "실시간 유튜브 라이브 댓글 수집 및 AI 감정 분석, 빈출 질문, 맞춤 행동 제안을 제공하는 실시간 AI 조연출 MVP 서비스",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_OPENAI_API"]
+}
