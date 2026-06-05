@@ -598,10 +598,10 @@ export default function App() {
       )}
 
       {/* MAIN LAYOUT GRID */}
-      <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 overflow-hidden max-h-[calc(100vh-125px)]">
+      <main className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-hidden max-h-[calc(100vh-125px)]">
         
         {/* LEFT PANEL: Live Comments Stream feed (col-span-3) */}
-        <section className="lg:col-span-3 bg-slate-950/80 border border-[rgba(56,189,248,0.15)] rounded-xl flex flex-col overflow-hidden max-h-full">
+        <section className="lg:basis-1/4 lg:flex-1 min-w-0 bg-slate-950/80 border border-[rgba(56,189,248,0.15)] rounded-xl flex flex-col overflow-hidden max-h-full">
           <div className="px-4 py-3 bg-slate-900/40 border-b border-[rgba(56,189,248,0.15)] flex justify-between items-center shrink-0">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
@@ -711,7 +711,7 @@ export default function App() {
         </section>
 
         {/* CENTER PANEL: Dashboard Grid / Metrics (col-span-6) */}
-        <section className="lg:col-span-6 min-w-0 flex flex-col gap-4 overflow-y-auto max-h-full pr-1">
+        <section className="lg:basis-2/4 lg:flex-[2] min-w-0 flex flex-col gap-4 overflow-y-auto max-h-full pr-1">
           
           {/* TOP Level Performance/Sought KPIs */}
           <div className="grid grid-cols-3 gap-3 shrink-0">
@@ -1005,7 +1005,7 @@ export default function App() {
         </section>
 
         {/* RIGHT PANEL: AI Actions & Action Suggestion Board (col-span-3) */}
-        <section className="lg:col-span-3 flex flex-col gap-4 overflow-y-auto max-h-full">
+        <section className="lg:basis-1/4 lg:flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto max-h-full">
           
           {/* Action Alerts Prompt Card */}
           <div className="bg-blue-600/10 border-2 border-blue-600/60 rounded-xl p-4 flex flex-col">
