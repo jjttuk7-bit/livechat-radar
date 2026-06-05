@@ -74,12 +74,16 @@ const ChartFrame: React.FC<{
   iconColor: string;
   children: React.ReactNode;
 }> = ({ title, Icon, iconColor, children }) => (
-  <div className="flex flex-col bg-slate-950/40 border border-slate-800 rounded-lg p-3 min-h-[180px]">
+  // Fixed-pixel height on the chart wrapper. Recharts ResponsiveContainer
+  // needs a parent with an explicitly resolved height; flex-1 + min-h inside
+  // a flex/grid ancestor causes it to measure as -1, which can collapse the
+  // whole analysis panel.
+  <div className="flex flex-col bg-slate-950/40 border border-slate-800 rounded-lg p-3">
     <div className="flex items-center gap-2 mb-2">
       <Icon size={14} className={iconColor} />
       <span className="text-[11px] font-semibold text-slate-300 font-sans uppercase tracking-wide">{title}</span>
     </div>
-    <div className="flex-1 min-h-[140px]">{children}</div>
+    <div className="h-[160px] w-full">{children}</div>
   </div>
 );
 
