@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { liveModeById } from '../config/liveModes';
-import { analyzeComments, buildPostLiveReport, mockCommentsByMode } from '../lib/analyzeComments';
+import { analyzeComments, buildPostLiveReport, resolveRadarComments } from '../lib/analyzeComments';
 import { generateActionCards } from '../lib/generateActionCards';
 import { LiveModeId } from '../types/liveRadar';
 import { ActionCards } from './ActionCards';
@@ -11,13 +11,16 @@ import { RadarMetrics } from './RadarMetrics';
 
 interface ModeDashboardProps {
   mode: LiveModeId;
+  liveComments: string[];
   onCopy: (text: string, id: string) => void;
   copiedId: string | null;
 }
 
-export const ModeDashboard: React.FC<ModeDashboardProps> = ({ mode, onCopy, copiedId }) => {
+export const ModeDashboard: React.FC<ModeDashboardProps> = ({ mode, liveComments, onCopy, copiedId }) => {
   const modeConfig = liveModeById[mode];
-  const radar = useMemo(() => analyzeComments({ mode, comments: mockCommentsByMode[mode] }), [mode]);
+  const radarComments = useMemo(() => resolveRadarComments(mode, liveComments), [mode, liveComments]);
+  const isUsingLiveComments = liveComments.some((comment) => comment.trim().length > 0);
+  const radar = useMemo(() => analyzeComments({ mode, comments: radarComments }), [mode, radarComments]);
   const actionCards = useMemo(() => generateActionCards(mode, radar.analyses), [mode, radar.analyses]);
   const report = useMemo(() => buildPostLiveReport(mode, radar.analyses), [mode, radar.analyses]);
 
@@ -30,6 +33,13 @@ export const ModeDashboard: React.FC<ModeDashboardProps> = ({ mode, onCopy, copi
           <p className="text-xs text-slate-400 mt-1 max-w-3xl">{modeConfig.description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <span className={`text-[10px] border rounded-md px-2 py-1 font-bold ${
+            isUsingLiveComments
+              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+              : 'border-slate-800 bg-slate-900/70 text-slate-400'
+          }`}>
+            {isUsingLiveComments ? `실시간 댓글 ${liveComments.length}건 분석 중` : 'mock 댓글로 미리보기'}
+          </span>
           {modeConfig.metrics.slice(0, 4).map((item) => (
             <span key={item} className="text-[10px] border border-slate-800 bg-slate-900/70 text-slate-300 rounded-md px-2 py-1">
               {item}

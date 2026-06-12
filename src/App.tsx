@@ -589,6 +589,7 @@ export default function App() {
 
       <ModeDashboard
         mode={selectedLiveMode}
+        liveComments={messages.map((message) => message.message)}
         onCopy={handleCopyToClipboard}
         copiedId={copiedId}
       />

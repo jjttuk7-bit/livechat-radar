@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { analyzeComments, buildPostLiveReport } from './analyzeComments';
+import { analyzeComments, buildPostLiveReport, resolveRadarComments } from './analyzeComments';
 import { generateActionCards } from './generateActionCards';
 
 const commerceComments = [
@@ -57,8 +57,23 @@ function testModeSpecificReportSections() {
   assert.ok(report.sections.some((section) => section.title === '클립 후보'));
 }
 
+function testResolveRadarCommentsPrefersLiveComments() {
+  const liveComments = ['실제 댓글 가격 문의입니다', '실제 댓글 링크 어디인가요'];
+  const result = resolveRadarComments('commerce', liveComments);
+
+  assert.deepEqual(result, liveComments);
+}
+
+function testResolveRadarCommentsFallsBackToMockWhenEmpty() {
+  const result = resolveRadarComments('education', []);
+
+  assert.ok(result.includes('여기 다시 설명해주세요'));
+}
+
 testCommerceAnalysis();
 testActionCardsHavePresenterLines();
 testModeSpecificReportSections();
+testResolveRadarCommentsPrefersLiveComments();
+testResolveRadarCommentsFallsBackToMockWhenEmpty();
 
 console.log('liveRadar tests passed');

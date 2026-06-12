@@ -40,6 +40,11 @@ export const mockCommentsByMode: Record<LiveModeId, string[]> = {
   ],
 };
 
+export function resolveRadarComments(mode: LiveModeId, liveComments: string[]): string[] {
+  const usableLiveComments = liveComments.map((comment) => comment.trim()).filter(Boolean);
+  return usableLiveComments.length > 0 ? usableLiveComments : mockCommentsByMode[mode];
+}
+
 const categoryRules: Record<LiveModeId, Array<{ category: string; keywords: string[]; sentiment?: CommentAnalysis['sentiment']; urgency?: CommentAnalysis['urgency'] }>> = {
   commerce: [
     { category: 'price_question', keywords: ['가격', '얼마', '할인', '혜택'], urgency: 'high' },
