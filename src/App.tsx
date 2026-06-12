@@ -39,6 +39,10 @@ import {
   CategorySnapshot,
 } from './types';
 import { TimelineDashboard } from './components/TimelineDashboard';
+import { liveModes } from './config/liveModes';
+import { ModeDashboard } from './components/ModeDashboard';
+import { ModeSelector } from './components/ModeSelector';
+import { LiveModeId } from './types/liveRadar';
 
 // B-4 Timeline 캐핑 — 메모리/렌더 비용 vs 추이 가시성 균형
 const CPM_HISTORY_CAP = 120;        // 3초 × 120 = ~6분
@@ -64,6 +68,7 @@ export default function App() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [autoAnalysisEnabled, setAutoAnalysisEnabled] = useState<boolean>(true);
+  const [selectedLiveMode, setSelectedLiveMode] = useState<LiveModeId>('commerce');
   
   // Post-stream report
   const [report, setReport] = useState<ReportResult | null>(null);
@@ -575,6 +580,18 @@ export default function App() {
           </label>
         </div>
       </div>
+
+      <ModeSelector
+        modes={liveModes}
+        selectedMode={selectedLiveMode}
+        onSelect={setSelectedLiveMode}
+      />
+
+      <ModeDashboard
+        mode={selectedLiveMode}
+        onCopy={handleCopyToClipboard}
+        copiedId={copiedId}
+      />
 
       {/* Warning/Success Toast feedback */}
       {errorMsg && (
