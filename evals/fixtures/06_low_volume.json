@@ -3,15 +3,45 @@
   "description": "초저밀도 트래픽. 짧은 댓글 6개. schema 완전성 + suggestedTopic 생성 보장 측정.",
   "streamTitle": "🌙 [소규모라이브] 토요일 새벽 잡담 방송",
   "messages": [
-    { "id": "l01", "author": "김민수", "message": "안녕하세요~", "timestamp": "2026-06-06T03:00:00Z" },
-    { "id": "l02", "author": "이지혜", "message": "ㅎㅎ 반갑습니다", "timestamp": "2026-06-06T03:00:30Z" },
-    { "id": "l03", "author": "박태형", "message": "오늘 새벽인데 사람 적네요", "timestamp": "2026-06-06T03:01:00Z" },
-    { "id": "l04", "author": "정수진", "message": "음악 좋아요", "timestamp": "2026-06-06T03:01:30Z" },
-    { "id": "l05", "author": "최유리", "message": "차분해서 좋네요", "timestamp": "2026-06-06T03:02:00Z" },
-    { "id": "l06", "author": "윤서연", "message": "내일 일찍 일어나야 하는데 ㅋㅋ", "timestamp": "2026-06-06T03:02:30Z" }
+    {
+      "id": "l01",
+      "author": "김민수",
+      "message": "안녕하세요~",
+      "timestamp": "2026-06-06T03:00:00Z"
+    },
+    {
+      "id": "l02",
+      "author": "이지혜",
+      "message": "ㅎㅎ 반갑습니다",
+      "timestamp": "2026-06-06T03:00:30Z"
+    },
+    {
+      "id": "l03",
+      "author": "박태형",
+      "message": "오늘 새벽인데 사람 적네요",
+      "timestamp": "2026-06-06T03:01:00Z"
+    },
+    {
+      "id": "l04",
+      "author": "정수진",
+      "message": "음악 좋아요",
+      "timestamp": "2026-06-06T03:01:30Z"
+    },
+    {
+      "id": "l05",
+      "author": "최유리",
+      "message": "차분해서 좋네요",
+      "timestamp": "2026-06-06T03:02:00Z"
+    },
+    {
+      "id": "l06",
+      "author": "윤서연",
+      "message": "내일 일찍 일어나야 하는데 ㅋㅋ",
+      "timestamp": "2026-06-06T03:02:30Z"
+    }
   ],
   "assertions": {
     "schema_complete": true,
-    "suggested_topic_nonempty": true
+    "conversion_advice_nonempty": true
   }
 }

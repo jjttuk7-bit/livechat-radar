@@ -9,17 +9,19 @@ import crypto from 'crypto';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import {
-  STATIC_ANALYZE_SYSTEM_PROMPT,
-  STATIC_REPORT_SYSTEM_PROMPT,
-  analyzeJsonSchema,
-  reportJsonSchema,
+  STATIC_SHOP_ANALYZE_SYSTEM_PROMPT,
+  STATIC_SHOP_REPORT_SYSTEM_PROMPT,
+  shopAnalyzeJsonSchema,
+  shopReportJsonSchema,
 } from './src/prompts.js';
+import { generateSimulatedShopAnalysis, generateSimulatedShopReport } from './src/lib/simulateShopAnalysis.js';
+import type { LiveProduct } from './src/types/liveShopping.js';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -271,187 +273,6 @@ app.get('/api/youtube/chat', async (req, res): Promise<any> => {
   }
 });
 
-// Mock/Simulated AI Analysis output if OpenAI API or Credit is missing or overloaded to guarantee zero errors
-function generateSimulatedAIAnalysis(messages: any[]): any {
-  if (!messages || messages.length === 0) {
-    return {
-      sentiment: { positive: 50, neutral: 50, negative: 0 },
-      topKeywords: [],
-      faq: [],
-      specialComments: [],
-      recentSummary: "수집된 실시간 댓글이 부족하여 분석 대기 중입니다.",
-      presenterActions: [
-        { type: "info", message: "시청자들의 댓글이 수집되면 실시간 조연출이 동작합니다.", target: "진행" }
-      ],
-      suggestedTopic: "시청자들과 가볍게 소통을 나누며 댓글 작성을 유도해 보세요!",
-      analyzedAt: new Date().toLocaleTimeString()
-    };
-  }
-
-  // 1. Smart Keyword Extraction (Korean heuristic filtering particle endings)
-  const stopWords = new Set([
-    '오늘', '진짜', '너무', '그냥', '진짜로', '방송', '보고', '은요', '는요', '은', '는', '이', '가', '을', '를',
-    '에', '의', '로', '으로', '고', '도', '과', '와', '한', '해서', '요', '거', '것', '합니다', '있습니다', '있네요',
-    '아주', '매우', '약간', '이거', '혹시', '지금', '어디', '어떻게', '왜', '누구', '무슨', '아', '오', '우', '와우'
-  ]);
-
-  const wordCounts: { [key: string]: number } = {};
-  messages.forEach(m => {
-    const text = m.message || '';
-    // Clean punctuation
-    const words = text.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").split(/\s+/);
-    words.forEach((w: string) => {
-      let cleanWord = w.trim();
-      if (cleanWord.length > 1) {
-        // Simple trim of postpositional endings
-        if (cleanWord.endsWith('은') || cleanWord.endsWith('는') || cleanWord.endsWith('이') || cleanWord.endsWith('가') || cleanWord.endsWith('을') || cleanWord.endsWith('를') || cleanWord.endsWith('에') || cleanWord.endsWith('도') || cleanWord.endsWith('과') || cleanWord.endsWith('와')) {
-          cleanWord = cleanWord.slice(0, -1);
-        }
-        if (cleanWord.length > 1 && !stopWords.has(cleanWord)) {
-          wordCounts[cleanWord] = (wordCounts[cleanWord] || 0) + 1;
-        }
-      }
-    });
-  });
-
-  const sortedKeywords = Object.entries(wordCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 4)
-    .map(([keyword, count]) => ({
-      keyword,
-      count,
-      trend: count > 3 ? "up" : "stable"
-    }));
-
-  // Fallback default keywords if none captured
-  if (sortedKeywords.length === 0) {
-    sortedKeywords.push({ keyword: "소통", count: 2, trend: "stable" });
-    sortedKeywords.push({ keyword: "투표", count: 1, trend: "stable" });
-  }
-
-  // 2. Identify custom special comments (Purchase signals / Tech errors / Complaints)
-  const specialComments: any[] = [];
-  let purchaseSignals = 0;
-  let streamIssues = 0;
-  let complaints = 0;
-
-  messages.forEach(m => {
-    const text = m.message || '';
-    if (text.includes('소리') || text.includes('마이크') || text.includes('끊김') || text.includes('멈춤') || text.includes('랙') || text.includes('버퍼링') || text.includes('싱크') || text.includes('화향')) {
-      streamIssues++;
-      if (specialComments.length < 5) {
-        specialComments.push({
-          text,
-          author: m.author,
-          category: 'stream_issue',
-          reason: '인터넷 수신율 또는 소리/음량 피드백 감지'
-        });
-      }
-    } else if (text.includes('정말 사고') || text.includes('구매') || text.includes('얼마') || text.includes('할인') || text.includes('가격') || text.includes('결제') || text.includes('배송') || text.includes('특전')) {
-      purchaseSignals++;
-      if (specialComments.length < 5) {
-        specialComments.push({
-          text,
-          author: m.author,
-          category: 'purchase_signal',
-          reason: '상품 결제, 무료 특전, 수하물 배송일 정밀 문의'
-        });
-      }
-    } else if (text.includes('답답') || text.includes('불만') || text.includes('화나') || text.includes('조롱') || text.includes('신경') || text.includes('거부') || text.includes('정치') || text.includes('반대')) {
-      complaints++;
-      if (specialComments.length < 5) {
-        specialComments.push({
-          text,
-          author: m.author,
-          category: 'complaint',
-          reason: '시청자 불만 의심 및 적극적 비판 반향 피드백 수집'
-        });
-      }
-    }
-  });
-
-  // Populate default special comments if none discovered
-  if (specialComments.length === 0) {
-    // Find some active chat messages to use
-    const candidates = messages.slice(-2);
-    candidates.forEach(c => {
-      specialComments.push({
-        text: c.message,
-        author: c.author,
-        category: 'purchase_signal',
-        reason: '시청자의 실시간 소통 인게이지먼트 증폭 지점'
-      });
-    });
-  }
-
-  // 3. Formulate Dynamic FAQ based on actual questions asked by users
-  const faq: any[] = [];
-  const questionMessages = messages.filter(m => m.message && (m.message.includes('?') || m.message.includes('요?') || m.message.includes('가요') || m.message.includes('나요')));
-  
-  if (questionMessages.length > 0) {
-    questionMessages.slice(0, 3).forEach((qm, idx) => {
-      faq.push({
-        question: qm.message.length > 25 ? qm.message.slice(0, 25) + '...' : qm.message,
-        count: Math.floor(Math.random() * 2) + 2,
-        templateAnswer: `항상 경청해 주셔서 깊이 감사드립니다! ${qm.author}님께서 달아주신 유익한 질문에 즉시 답해 드리겠습니다. 저희 방송 가이드와 노하우를 바탕으로 자세한 답변과 혜택을 전해드리니 꼭 참고하세요!`
-      });
-    });
-  }
-
-  // Add default robust FAQs if we don't have enough questions
-  if (faq.length < 2) {
-    faq.push({
-      question: "실시간 투표 및 향후 일정 공지는 어디서 보나요?",
-      count: 4,
-      templateAnswer: "채널 상단 커뮤니티 탭 고정글을 통해 상시 업데이트 중입니다. 구독 알림을 켜두시면 다음 예고를 더 빨리 받아보실 수 있습니다!"
-    });
-    faq.push({
-      question: "정규 편성 시간 외에 긴급 임시 라이브도 하시나요?",
-      count: 3,
-      templateAnswer: "중요한 현안이 터지거나 새로운 여론지표 평론이 필요할 때 언제든 실시간 긴급 번개 평론 방송을 열고 있습니다!"
-    });
-  }
-
-  // 4. Sentiment Scoring
-  const basePositive = 45 + (purchaseSignals * 6);
-  const baseNegative = 10 + (complaints * 5) + (streamIssues * 3);
-  const positive = Math.max(10, Math.min(85, basePositive));
-  const negative = Math.max(5, Math.min(45, baseNegative));
-  const neutral = 100 - positive - negative;
-
-  // 5. Dynamic Summary Text
-  const primaryTerm = sortedKeywords[0]?.keyword || "방송 소통";
-  const secondaryTerm = sortedKeywords[1]?.keyword || "지지자";
-  const recentSummary = `최근 댓글 피드에서 '${primaryTerm}'(와)과 '${secondaryTerm}'을(를) 화두로 활발해진 시청자 상호작용이 포착되고 있습니다. 전반적으로 에너지 가득하고 깊이 몰입적인 정서가 안정적으로 유지되고 있습니다.`;
-
-  // 6. Dynamic Presenter Recommended Actions
-  const presenterActions = [
-    {
-      type: streamIssues > 0 ? "urgent" : "info",
-      message: streamIssues > 0 
-        ? `🎙️ '${primaryTerm}' 이슈 및 송출 품질 간헐 피드백이 감지되었습니다. 인터넷 오디오 환경을 가볍게 점검해 주세요.`
-        : `💬 시청자분들이 지금 '${primaryTerm}' 주제에 깊이 공감하고 있습니다! 이 타이밍에 질문을 주신 분들의 아이디를 언급해주시면 좋습니다.`,
-      target: "소통"
-    },
-    {
-      type: "action",
-      message: `🗳️ '${secondaryTerm}' 관련 멘트를 가볍게 엮으시면서, "의견이 좋았다면 추천과 구독 한번씩 꼭 부탁드린다"고 채널 참여 화력을 이끌어내 보세요!`,
-      target: "진행"
-    }
-  ];
-
-  return {
-    sentiment: { positive, neutral, negative },
-    topKeywords: sortedKeywords,
-    faq,
-    specialComments,
-    recentSummary,
-    presenterActions,
-    suggestedTopic: `'${primaryTerm}'에 과연 어떠한 생각들이 있으신지, 실시간 시청자분들의 생생한 소감을 댓글창에 자유롭게 남겨달라고 이끌어주세요!`,
-    analyzedAt: new Date().toLocaleTimeString()
-  };
-}
-
 // Helper function to clean markdown wrappers and parse JSON resiliently
 function cleanAndParseJSON(text: string): any {
   let cleaned = text.trim();
@@ -570,44 +391,38 @@ function logCacheStats(): void {
 // 정적 system 프롬프트 + json_schema는 src/prompts.ts에서 import (단일 출처).
 // evals/runner.ts도 같은 객체를 import하여 회귀 평가 시 drift 방지.
 
-// API Route: 3. Core AI Analysis Proxy using OpenAI (gpt-4o-mini primary / gpt-4o fallback)
-app.post('/api/analyze', async (req, res): Promise<any> => {
+// API Route: 3-S. 라이브 쇼핑 전용 분석 (6축 37태그 · 상품/옵션 매칭 · 미응답 큐 · 클로징 처방)
+// 입력: messages[] + products(LiveProduct[]) 컨텍스트. 키 미설정/실패 시 로컬 시뮬레이터로 폴백.
+app.post('/api/analyze/shop', async (req, res): Promise<any> => {
   const { messages, streamTitle } = req.body;
+  const products: LiveProduct[] = Array.isArray(req.body?.products) ? req.body.products : [];
+
+  // [1] 입력 검증 — 댓글이 없으면 시뮬레이터의 빈 상태 응답을 그대로 반환 (UI 안전)
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return res.json({
       success: true,
-      analysis: {
-        sentiment: { positive: 50, neutral: 50, negative: 0 },
-        topKeywords: [],
-        faq: [],
-        specialComments: [],
-        recentSummary: "충분한 실시간 댓글이 수집되지 않았습니다. 실시간 댓글이 쌓이면 AI 분석을 개시합니다.",
-        presenterActions: [{ type: "info", message: "시청자들의 댓글 수집을 시작하고 있습니다. 잠시만 대기해주세요.", target: "진행" }],
-        suggestedTopic: "시청자들에게 가볍게 하이파이브나 날씨 인사를 구하면서 댓글 유도를 해보세요!",
-        analyzedAt: new Date().toLocaleTimeString()
-      }
+      analysis: generateSimulatedShopAnalysis([], products),
     });
   }
 
-  // Fallback to offline simulation if OpenAI key is not loaded.
-  // DEMO/시뮬레이터 경로는 응답 캐시 우회 — 시뮬레이터의 무작위성을 그대로 노출해야 자연스러움.
+  // [2] !ai 폴백 (시뮬레이터) — DEMO/키 미설정 경로는 응답 캐시 우회
   if (!ai) {
-    console.log("No OPENAI_API_KEY detected. Using High-Fidelity local simulation analyzer.");
-    const simResult = generateSimulatedAIAnalysis(messages);
+    console.log('No OPENAI_API_KEY detected. Using local live-shopping simulator.');
+    const simResult = generateSimulatedShopAnalysis(messages, products);
     return res.json({ success: true, analysis: simResult, isSimulated: true });
   }
 
+  // [3] 정상 경로 (OpenAI)
   try {
-    // We send a sliding window of recent messages
     const windowOffset = Math.max(0, messages.length - 80);
     const targetMessages = messages.slice(windowOffset);
 
-    // [A-2] 응답 캐시 확인 — 동일 (streamTitle, message IDs) 조합이 TTL 내 재호출되면 즉시 반환.
-    const cacheKey = buildAnalyzeCacheKey(streamTitle || '', targetMessages);
+    // [A-2] 응답 캐시 — streamTitle + 메시지 ID 집합 + 상품 컨텍스트 시그니처로 결정.
+    const productSig = products.map((p) => `${p.id}:${p.isActive ? 1 : 0}`).join(',');
+    const cacheKey = buildAnalyzeCacheKey(`shop|${streamTitle || ''}|${productSig}`, targetMessages);
     const cached = getCachedAnalysis(cacheKey);
     if (cached) {
       logCacheStats();
-      // analyzedAt만 새로 — UI는 "방금 분석" 표시를 그대로 보여줘도 의미 동일
       return res.json({ success: true, analysis: { ...cached, analyzedAt: new Date().toLocaleTimeString() }, cached: true });
     }
 
@@ -615,132 +430,105 @@ app.post('/api/analyze', async (req, res): Promise<any> => {
       .map((m) => `[ID:${m.id}] ${m.author}: "${m.message}"`)
       .join('\n');
 
-    // [A-1] system은 STATIC_ANALYZE_SYSTEM_PROMPT 그대로 — Prompt Caching prefix.
-    // user에는 호출별로 바뀌는 데이터만 (제목, 댓글, 카운트).
-    const userPrompt = `현재 방송 제목: "${streamTitle || '실시간 라이브 방송'}"
-수집된 실시간 최신 댓글 목록 (${targetMessages.length}개):
+    const serializedProducts = products.length > 0
+      ? products
+          .map((p) => `- id:${p.id} | ${p.name}${p.price != null ? ` | ${p.price}원` : ''}${p.options?.length ? ` | 옵션: ${p.options.join(', ')}` : ''}${p.isActive ? ' | [현재 소개중]' : ''}`)
+          .join('\n')
+      : '(등록된 상품 없음 — productId/optionLabel은 모두 null로 두십시오.)';
+
+    // [A-1] system은 정적 프롬프트 그대로 (Prompt Caching prefix). user에는 호출별 데이터만.
+    const userPrompt = `현재 방송 제목: "${streamTitle || '라이브 쇼핑 방송'}"
+
+[등록 상품/옵션 목록]
+${serializedProducts}
+
+[수집된 실시간 최신 댓글 (${targetMessages.length}개)]
 ${serializedComments}`;
 
     const response = await generateContentWithRetryAndFallback({
-      systemPrompt: STATIC_ANALYZE_SYSTEM_PROMPT,
+      systemPrompt: STATIC_SHOP_ANALYZE_SYSTEM_PROMPT,
       userPrompt,
-      schemaName: 'live_chat_analysis',
-      jsonSchema: analyzeJsonSchema,
+      schemaName: 'live_shopping_analysis',
+      jsonSchema: shopAnalyzeJsonSchema,
     });
 
-    const cleanText = response.text?.trim() || '';
-    const parsingObj = cleanAndParseJSON(cleanText);
-    parsingObj.analyzedAt = new Date().toLocaleTimeString();
+    const parsed = cleanAndParseJSON(response.text?.trim() || '{}');
+    parsed.analyzedAt = new Date().toLocaleTimeString();
 
-    // 캐시 저장 — analyzedAt 제외한 본체만 저장하면 hit 시 새 timestamp 부여 가능.
-    // 단순화를 위해 통째로 저장하고 hit 시 spread로 덮어쓴다.
-    setCachedAnalysis(cacheKey, parsingObj);
+    setCachedAnalysis(cacheKey, parsed);
     logCacheStats();
 
-    return res.json({ success: true, analysis: parsingObj });
+    return res.json({ success: true, analysis: parsed });
   } catch (err: any) {
-    console.error('OpenAI Analysis internal failure:', err);
-    // Graceful error recovery: Use simulated backup analysis to avoid blocking the app
-    const fallbackAns = generateSimulatedAIAnalysis(messages);
+    console.error('OpenAI shop analysis internal failure:', err);
+    // Graceful recovery: 로컬 시뮬레이터로 즉시 복구하여 앱 흐름을 막지 않는다.
+    const fallback = generateSimulatedShopAnalysis(messages, products);
     return res.json({
       success: true,
-      analysis: fallbackAns,
-      errorInfo: `AI 분석 호출 도중 지연이 발생하여 가상 분석 시스템으로 즉시 자동 복구되었습니다: ${err.message}`
+      analysis: fallback,
+      errorInfo: `라이브 쇼핑 AI 분석 중 지연이 발생하여 가상 분석 시스템으로 즉시 자동 복구되었습니다: ${err.message}`,
     });
   }
 });
 
-// API Route: 4. Post-stream wrap-up report generation
-app.post('/api/report', async (req, res): Promise<any> => {
+// API Route: 4-S. 라이브 쇼핑 종료 리포트 (판매 성과 중심)
+app.post('/api/report/shop', async (req, res): Promise<any> => {
   const { messages, streamTitle, peakCpm } = req.body;
-  
+  const products: LiveProduct[] = Array.isArray(req.body?.products) ? req.body.products : [];
+
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ success: false, error: '분석에 필요한 댓글 목록이 비어 있습니다.' });
   }
 
-  // Graceful local compilation fallback if OpenAI key is missing
+  // !ai 폴백 — 로컬 시뮬레이터로 판매 성과 리포트 생성
   if (!ai) {
-    const reportText = `# 📊 LiveChat Radar 방송 종합 분석 리포트
-
-## 1. 📈 방송 개요 및 주요 통계
-- **라이브 타이틀**: ${streamTitle || '실시간 온라인 라이브'}
-- **수집된 전체 댓글 수**: ${messages.length}개
-- **최고 순간 분당 댓글 수 (Peak CPM)**: ${peakCpm || 24} CPM
-- **지배적 시청 정서**: 😊 긍정 (수집 댓글 중 약 74% 차지)
-
----
-
-## 2. 🔥 최고조 소통 모먼트 (Hot Moment)
-- 방송 시작 후 약 10분경 제품의 실물 규격과 사은품 수량을 공개했던 시기에 분당 대화 강도가 가장 높았습니다.
-- 가격 정보 공개 직후 "대박이다", "믿고 바로 산다"라는 긍정 피드백과 함께 구매 사이트 링크 요청이 최대치를 기록했습니다.
-
----
-
-## 3.  핵심 해결/미해결 FAQ와 답변 요약
-- **질문 1:** 무상 A/S 정책 및 보장 범위는?
-  - **피드백:** 무상 2년 및 온라인 원스톱 접수처를 소개해 깔끔하게 궁금증이 해결되었습니다.
-- **질문 2:** 당일 출고 여부 및 주말 배송 기간은?
-  - **피드백:** 우체국 익일 빠른 특급 배송 약속을 하여 시청자 구매 동기를 높였습니다.
-
----
-
-## 4. 📢 구매 의사/불만/방송 상태 시그널 분석
-- **구매 전환 시그널**: 총 ${Math.floor(messages.length * 0.15)}회 검출. 할인 혜택 조합과 라이브 전용 한정 특별 사은품이 시청자들에게 신선한 구매 자극으로 입증되었습니다.
-- **시청자 불편 호소**: 총 ${Math.floor(messages.length * 0.05)}회 검출. 오디오 미세 반향(울림) 및 버퍼링에 대한 마이너 의견이 간간이 관측되었습니다.
-
----
-
-## 5. 💡 다음 방송 성공을 위한 필살 전략 제안
-1. **기술 환경 사전 최적화**: 마이크 게인 조절 및 소음 억제 필터를 무조건 활성화하여 세팅할 것.
-2. **할인 소구 방식 강화**: 라이브 전용 쿠폰 스티커 그래픽을 화면 자막 레이아웃에 직접 상시 표기하여 시청자가 뒤늦게 입장해도 헤매지 않도록 배려할 것.
-3. **참여형 코너 강화**: 진행 중에 시청자 선호 색상을 실시간 설문(투표)을 받아 순위를 매기는 인터랙티브 미션을 중간에 배치하십시오.
-`;
-
-    return res.json({
-      success: true,
-      report: {
-        reportMarkdown: reportText,
-        summaryStats: {
-          totalMessages: messages.length,
-          peakCpm: peakCpm || 24,
-          dominantSentiment: '긍정 및 기대감 충만 (74%)',
-          resolvedFaqsCount: 3
-        },
-        generatedAt: new Date().toLocaleString()
-      },
-      isSimulated: true
-    });
+    console.log('No OPENAI_API_KEY detected. Using local live-shopping report simulator.');
+    const simReport = generateSimulatedShopReport(messages, products, peakCpm || 0);
+    return res.json({ success: true, report: simReport, isSimulated: true });
   }
 
   try {
     const serializedComments = messages
-      .slice(0, 150) // Cap to avoid context overflow for a standard prompt MVP
-      .map(m => `${m.author}: "${m.message}"`)
+      .slice(0, 150)
+      .map((m) => `${m.author}: "${m.message}"`)
       .join('\n');
 
-    // [A-1] system은 STATIC_REPORT_SYSTEM_PROMPT 그대로 — Prompt Caching prefix.
-    // user에는 호출별 가변 데이터(제목, 카운트, peakCpm, 댓글 본문)만.
+    const serializedProducts = products.length > 0
+      ? products
+          .map((p) => `- id:${p.id} | ${p.name}${p.price != null ? ` | ${p.price}원` : ''}${p.options?.length ? ` | 옵션: ${p.options.join(', ')}` : ''}`)
+          .join('\n')
+      : '(등록된 상품 없음)';
+
     const userPrompt = `[방송 정보]
-- 방송 제목: "${streamTitle || '실시간 소통 라이브'}"
-- 총 수집된 실시간 댓글 수 : ${messages.length}개
-- 최대 분당 댓글 수 (Peak CPM): ${peakCpm || 18} CPM
+- 방송 제목: "${streamTitle || '라이브 쇼핑 방송'}"
+- 총 수집 댓글 수: ${messages.length}개
+- 최대 분당 댓글 수 (Peak CPM): ${peakCpm || 0} CPM
+
+[등록 상품/옵션]
+${serializedProducts}
 
 [댓글 전반 데이터]
 ${serializedComments}`;
 
     const response = await generateContentWithRetryAndFallback({
-      systemPrompt: STATIC_REPORT_SYSTEM_PROMPT,
+      systemPrompt: STATIC_SHOP_REPORT_SYSTEM_PROMPT,
       userPrompt,
-      schemaName: 'live_chat_report',
-      jsonSchema: reportJsonSchema,
+      schemaName: 'live_shopping_report',
+      jsonSchema: shopReportJsonSchema,
     });
 
     const parsed = cleanAndParseJSON(response.text?.trim() || '{}');
     parsed.generatedAt = new Date().toLocaleString();
     return res.json({ success: true, report: parsed });
   } catch (err: any) {
-    console.error('OpenAI report generation internal failure:', err);
-    return res.status(500).json({ success: false, error: `종료 리포트 생성 실패: ${err.message}` });
+    console.error('OpenAI shop report generation internal failure:', err);
+    // Graceful recovery: 로컬 시뮬레이터로 복구
+    const fallback = generateSimulatedShopReport(messages, products, peakCpm || 0);
+    return res.json({
+      success: true,
+      report: fallback,
+      errorInfo: `라이브 쇼핑 리포트 생성 중 지연이 발생하여 가상 리포트로 자동 복구되었습니다: ${err.message}`,
+    });
   }
 });
 

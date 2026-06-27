@@ -19,16 +19,17 @@ import dotenv from 'dotenv';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import {
-  STATIC_ANALYZE_SYSTEM_PROMPT,
-  analyzeJsonSchema,
+  STATIC_SHOP_ANALYZE_SYSTEM_PROMPT,
+  shopAnalyzeJsonSchema,
 } from '../src/prompts';
+import { generateSimulatedShopAnalysis } from '../src/lib/simulateShopAnalysis';
+import type { LiveProduct } from '../src/types/liveShopping';
 import {
-  type AnalyzeResponse,
+  type ShopAnalyzeResponse,
   type FixtureAssertions,
   type AssertResult,
   runUniversal,
   runFixtureSpecific,
-  buildMockResponse,
 } from './assertions';
 
 dotenv.config();
@@ -37,6 +38,7 @@ interface Fixture {
   name: string;
   description: string;
   streamTitle: string;
+  products?: LiveProduct[];
   messages: Array<{ id: string; author: string; message: string; timestamp: string; isSponsor?: boolean }>;
   assertions: FixtureAssertions;
 }
@@ -79,33 +81,44 @@ async function callAnalyze(
   ai: OpenAI,
   model: string,
   fixture: Fixture,
-): Promise<{ response: AnalyzeResponse; usage: any }> {
+): Promise<{ response: ShopAnalyzeResponse; usage: any }> {
   const serializedComments = fixture.messages
     .map(m => `[ID:${m.id}] ${m.author}: "${m.message}"`)
     .join('\n');
 
+  const products = fixture.products ?? [];
+  const serializedProducts = products.length > 0
+    ? products
+        .map((p) => `- id:${p.id} | ${p.name}${p.price != null ? ` | ${p.price}원` : ''}${p.options?.length ? ` | 옵션: ${p.options.join(', ')}` : ''}${p.isActive ? ' | [현재 소개중]' : ''}`)
+        .join('\n')
+    : '(등록된 상품 없음 — productId/optionLabel은 모두 null로 두십시오.)';
+
   const userPrompt = `현재 방송 제목: "${fixture.streamTitle}"
-수집된 실시간 최신 댓글 목록 (${fixture.messages.length}개):
+
+[등록 상품/옵션 목록]
+${serializedProducts}
+
+[수집된 실시간 최신 댓글 (${fixture.messages.length}개)]
 ${serializedComments}`;
 
   const completion = await ai.chat.completions.create({
     model,
     messages: [
-      { role: 'system', content: STATIC_ANALYZE_SYSTEM_PROMPT },
+      { role: 'system', content: STATIC_SHOP_ANALYZE_SYSTEM_PROMPT },
       { role: 'user', content: userPrompt },
     ],
     response_format: {
       type: 'json_schema',
       json_schema: {
-        name: 'live_chat_analysis',
+        name: 'live_shopping_analysis',
         strict: true,
-        schema: analyzeJsonSchema as any,
+        schema: shopAnalyzeJsonSchema as any,
       },
     },
   });
 
   const text = completion.choices?.[0]?.message?.content ?? '';
-  let parsed: AnalyzeResponse;
+  let parsed: ShopAnalyzeResponse;
   try {
     parsed = JSON.parse(text);
   } catch (e) {
@@ -121,7 +134,7 @@ async function runFixture(
   opts: { live: boolean; model: string; ai: OpenAI | null },
 ): Promise<FixtureResult> {
   const start = Date.now();
-  let response: AnalyzeResponse;
+  let response: ShopAnalyzeResponse;
   let tokens: FixtureResult['tokens'] | undefined;
 
   if (opts.live && opts.ai) {
@@ -135,15 +148,14 @@ async function runFixture(
       };
     }
   } else {
-    // dry-run: mock 응답으로 assertion 자체 동작 점검
-    response = buildMockResponse();
+    // dry-run: 결정적 로컬 시뮬레이터로 실제 시나리오 응답 생성.
+    // 시뮬레이터가 fixture 메시지를 실제 분류하므로 universal + specific 모두 의미 있는 self-test가 된다.
+    response = generateSimulatedShopAnalysis(fixture.messages, fixture.products ?? []);
   }
 
   const universal = runUniversal(response);
-  // Dry-run에서는 fixture-specific assertion 생략 (mock 응답은 시나리오를 모름).
-  // 의도: dry-run = runner + fixture 파싱 + universal 검증의 self-test.
-  //       --live = 실제 시나리오별 응답 품질 채점.
-  const specific = opts.live ? runFixtureSpecific(response, fixture.assertions) : [];
+  // dry-run(시뮬레이터)·live(OpenAI) 모두 시나리오별 specific assertion 채점.
+  const specific = runFixtureSpecific(response, fixture.assertions);
   const all = [...universal, ...specific];
   const failed = all.filter(a => !a.ok);
 
@@ -162,7 +174,7 @@ async function runFixture(
 
 function printResults(results: FixtureResult[], opts: { live: boolean; model: string }): void {
   console.log('');
-  console.log(`[Eval] LiveChat Radar Analyze Prompt Regression Suite`);
+  console.log(`[Eval] LiveChat Radar 라이브 쇼핑 분석 회귀 스위트`);
   console.log(`[Eval] Mode: ${opts.live ? '--live' : '--dry-run'}  Model: ${opts.model}  Fixtures: ${results.length}`);
   console.log('');
 

@@ -2,257 +2,148 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  *
- * LiveChat Radar — Eval suite assertions.
+ * LiveChat Radar — 라이브 쇼핑 Eval suite assertions (S-8).
  *
- * universal: 모든 분석 응답이 만족해야 하는 구조/관계 검증
+ * universal: 모든 쇼핑 분석 응답이 만족해야 하는 구조/enum/관계 검증
  * fixture-specific: 각 fixture가 자기 시나리오에 맞게 추가 검증
  */
 
-export interface AnalyzeResponse {
-  sentiment: { positive: number; neutral: number; negative: number };
-  topKeywords: Array<{ keyword: string; count: number; trend: string }>;
-  faq: Array<{ question: string; count: number; templateAnswer: string }>;
-  specialComments: Array<{ text: string; author: string; category: string; reason: string }>;
-  recentSummary: string;
-  presenterActions: Array<{ type: string; message: string; target: string }>;
-  suggestedTopic: string;
-}
+import { SHOP_AXES, SHOP_TAGS, TAG_AXIS } from '../src/types/liveShopping';
+import type { ShopAnalysisResult } from '../src/types/liveShopping';
+
+export type ShopAnalyzeResponse = Omit<ShopAnalysisResult, 'analyzedAt'>;
 
 export interface FixtureAssertions {
-  purchase_signal_min?: number;
-  stream_issue_min?: number;
-  complaint_min?: number;
-  sentiment_positive_min?: number;
-  sentiment_negative_min?: number;
-  sentiment_max_any_category?: number;
-  faq_min?: number;
+  purchased_min?: number;          // 구매 인증(purchased+repurchase) ≥ n
+  stream_issue_min?: number;       // 방송 장애 태그 ≥ n
+  price_resistance_min?: number;   // 가격 저항 태그 ≥ n
+  unanswered_min?: number;         // 미응답 큐 ≥ n
+  faq_min?: number;                // faq ≥ n
+  product_match_min?: number;      // productId 매칭된 댓글 ≥ n
+  action_card_id_any?: string[];   // actionCards.id 중 하나 이상 존재
   schema_complete?: boolean;
-  suggested_topic_nonempty?: boolean;
-  presenter_action_categories_any?: string[];
-  presenter_action_urgent_or_audio?: boolean;
+  conversion_advice_nonempty?: boolean;
+  recent_summary_nonempty?: boolean;
 }
 
 export type AssertResult = { ok: boolean; label: string; detail?: string };
 
+const SENTIMENTS = new Set(['positive', 'neutral', 'negative']);
+const URGENCIES = new Set(['low', 'medium', 'high']);
+const STATUSES = new Set(['good', 'normal', 'warning', 'danger']);
+const TAGSET = new Set<string>(SHOP_TAGS);
+const AXISSET = new Set<string>(SHOP_AXES);
+
 // ── Universal assertions ─────────────────────────────────────────────────────
 
-export function runUniversal(resp: AnalyzeResponse): AssertResult[] {
+export function runUniversal(resp: ShopAnalyzeResponse): AssertResult[] {
   const r: AssertResult[] = [];
 
-  // sentiment 합 100
-  const s = resp.sentiment;
-  const sum = (s?.positive ?? 0) + (s?.neutral ?? 0) + (s?.negative ?? 0);
+  // analyses 구조 + enum 정합성
+  const analyses = resp.analyses ?? [];
+  const badTag = analyses.find((a) => !TAGSET.has(a.tag));
+  r.push({ ok: !badTag, label: 'analyses.tag enum 유효', detail: badTag ? `invalid="${badTag.tag}"` : undefined });
+
+  const badAxis = analyses.find((a) => !AXISSET.has(a.axis));
+  r.push({ ok: !badAxis, label: 'analyses.axis enum 유효', detail: badAxis ? `invalid="${badAxis.axis}"` : undefined });
+
+  const axisMismatch = analyses.find((a) => TAG_AXIS[a.tag] !== a.axis);
   r.push({
-    ok: sum === 100,
-    label: 'sentiment 합=100',
-    detail: `pos=${s?.positive} neu=${s?.neutral} neg=${s?.negative} sum=${sum}`,
+    ok: !axisMismatch,
+    label: 'axis-tag 매핑 일치',
+    detail: axisMismatch ? `${axisMismatch.tag}→${axisMismatch.axis} (expect ${TAG_AXIS[axisMismatch.tag]})` : undefined,
   });
 
-  // topKeywords 1~5 (스펙은 3 권장이지만 모델이 약간 벗어날 수 있음)
-  const tk = resp.topKeywords?.length ?? 0;
-  r.push({
-    ok: tk >= 1 && tk <= 5,
-    label: 'topKeywords 개수 1~5',
-    detail: `count=${tk}`,
-  });
+  const badSent = analyses.find((a) => !SENTIMENTS.has(a.sentiment));
+  r.push({ ok: !badSent, label: 'analyses.sentiment 유효', detail: badSent ? `invalid="${badSent.sentiment}"` : undefined });
 
-  // specialComments ≤ 5
-  const sc = resp.specialComments?.length ?? 0;
-  r.push({
-    ok: sc <= 5,
-    label: 'specialComments ≤ 5',
-    detail: `count=${sc}`,
-  });
+  const badUrg = analyses.find((a) => !URGENCIES.has(a.urgency));
+  r.push({ ok: !badUrg, label: 'analyses.urgency 유효', detail: badUrg ? `invalid="${badUrg.urgency}"` : undefined });
 
-  // specialComments category 유효
-  const validCats = new Set(['complaint', 'purchase_signal', 'stream_issue']);
-  const invalidCat = resp.specialComments?.find(c => !validCats.has(c.category));
-  r.push({
-    ok: !invalidCat,
-    label: 'specialComments.category 유효',
-    detail: invalidCat ? `invalid="${invalidCat.category}"` : undefined,
-  });
+  // metrics 비어있지 않음 + status 유효
+  const metrics = resp.metrics ?? [];
+  r.push({ ok: metrics.length > 0, label: 'metrics 비어있지 않음', detail: `count=${metrics.length}` });
+  const badStatus = metrics.find((m) => !STATUSES.has(m.status));
+  r.push({ ok: !badStatus, label: 'metrics.status 유효', detail: badStatus ? `invalid="${badStatus.status}"` : undefined });
 
-  // presenterActions 1~5
-  const pa = resp.presenterActions?.length ?? 0;
-  r.push({
-    ok: pa >= 1 && pa <= 5,
-    label: 'presenterActions 개수 1~5',
-    detail: `count=${pa}`,
-  });
+  // actionCards ≤ 3 + priority 유효
+  const cards = resp.actionCards ?? [];
+  r.push({ ok: cards.length <= 3, label: 'actionCards ≤ 3', detail: `count=${cards.length}` });
+  const badPrio = cards.find((c) => !URGENCIES.has(c.priority));
+  r.push({ ok: !badPrio, label: 'actionCards.priority 유효', detail: badPrio ? `invalid="${badPrio.priority}"` : undefined });
 
-  // presenterActions type 유효
-  const validTypes = new Set(['urgent', 'info', 'action']);
-  const invalidType = resp.presenterActions?.find(p => !validTypes.has(p.type));
-  r.push({
-    ok: !invalidType,
-    label: 'presenterActions.type 유효',
-    detail: invalidType ? `invalid="${invalidType.type}"` : undefined,
-  });
+  // unanswered tag/urgency 유효
+  const unanswered = resp.unanswered ?? [];
+  const badQ = unanswered.find((q) => !TAGSET.has(q.tag) || !URGENCIES.has(q.urgency));
+  r.push({ ok: !badQ, label: 'unanswered tag/urgency 유효', detail: badQ ? `q=${badQ.id}` : undefined });
 
-  // recentSummary 비어있지 않음
-  r.push({
-    ok: !!resp.recentSummary && resp.recentSummary.length > 5,
-    label: 'recentSummary 비어있지 않음',
-    detail: `len=${resp.recentSummary?.length ?? 0}`,
-  });
+  // productInterest / faq 배열
+  r.push({ ok: Array.isArray(resp.productInterest), label: 'productInterest 배열' });
+  r.push({ ok: Array.isArray(resp.faq), label: 'faq 배열' });
 
-  // suggestedTopic 비어있지 않음
-  r.push({
-    ok: !!resp.suggestedTopic && resp.suggestedTopic.length > 5,
-    label: 'suggestedTopic 비어있지 않음',
-    detail: `len=${resp.suggestedTopic?.length ?? 0}`,
-  });
+  // recentSummary / conversionAdvice 비어있지 않음
+  r.push({ ok: !!resp.recentSummary && resp.recentSummary.length > 3, label: 'recentSummary 비어있지 않음', detail: `len=${resp.recentSummary?.length ?? 0}` });
+  r.push({ ok: !!resp.conversionAdvice && resp.conversionAdvice.length > 3, label: 'conversionAdvice 비어있지 않음', detail: `len=${resp.conversionAdvice?.length ?? 0}` });
 
   return r;
 }
 
 // ── Fixture-specific assertions ──────────────────────────────────────────────
 
-export function runFixtureSpecific(
-  resp: AnalyzeResponse,
-  a: FixtureAssertions,
-): AssertResult[] {
+export function runFixtureSpecific(resp: ShopAnalyzeResponse, a: FixtureAssertions): AssertResult[] {
   const r: AssertResult[] = [];
+  const analyses = resp.analyses ?? [];
+  const countTag = (...tags: string[]) => analyses.filter((x) => tags.includes(x.tag)).length;
 
-  if (a.purchase_signal_min !== undefined) {
-    const n = resp.specialComments?.filter(c => c.category === 'purchase_signal').length ?? 0;
-    r.push({
-      ok: n >= a.purchase_signal_min,
-      label: `purchase_signal ≥ ${a.purchase_signal_min}`,
-      detail: `found=${n}`,
-    });
+  if (a.purchased_min !== undefined) {
+    const n = countTag('purchased', 'repurchase');
+    r.push({ ok: n >= a.purchased_min, label: `구매 인증 ≥ ${a.purchased_min}`, detail: `found=${n}` });
   }
-
   if (a.stream_issue_min !== undefined) {
-    const n = resp.specialComments?.filter(c => c.category === 'stream_issue').length ?? 0;
-    r.push({
-      ok: n >= a.stream_issue_min,
-      label: `stream_issue ≥ ${a.stream_issue_min}`,
-      detail: `found=${n}`,
-    });
+    const n = countTag('stream_issue');
+    r.push({ ok: n >= a.stream_issue_min, label: `방송 장애 ≥ ${a.stream_issue_min}`, detail: `found=${n}` });
   }
-
-  if (a.complaint_min !== undefined) {
-    const n = resp.specialComments?.filter(c => c.category === 'complaint').length ?? 0;
-    r.push({
-      ok: n >= a.complaint_min,
-      label: `complaint ≥ ${a.complaint_min}`,
-      detail: `found=${n}`,
-    });
+  if (a.price_resistance_min !== undefined) {
+    const n = countTag('price_resistance');
+    r.push({ ok: n >= a.price_resistance_min, label: `가격 저항 ≥ ${a.price_resistance_min}`, detail: `found=${n}` });
   }
-
-  if (a.sentiment_positive_min !== undefined) {
-    const v = resp.sentiment?.positive ?? 0;
-    r.push({
-      ok: v >= a.sentiment_positive_min,
-      label: `sentiment.positive ≥ ${a.sentiment_positive_min}`,
-      detail: `value=${v}`,
-    });
+  if (a.unanswered_min !== undefined) {
+    const n = resp.unanswered?.length ?? 0;
+    r.push({ ok: n >= a.unanswered_min, label: `미응답 큐 ≥ ${a.unanswered_min}`, detail: `found=${n}` });
   }
-
-  if (a.sentiment_negative_min !== undefined) {
-    const v = resp.sentiment?.negative ?? 0;
-    r.push({
-      ok: v >= a.sentiment_negative_min,
-      label: `sentiment.negative ≥ ${a.sentiment_negative_min}`,
-      detail: `value=${v}`,
-    });
-  }
-
-  if (a.sentiment_max_any_category !== undefined) {
-    const max = Math.max(
-      resp.sentiment?.positive ?? 0,
-      resp.sentiment?.neutral ?? 0,
-      resp.sentiment?.negative ?? 0,
-    );
-    r.push({
-      ok: max < a.sentiment_max_any_category,
-      label: `어느 sentiment 카테고리도 ${a.sentiment_max_any_category} 미만`,
-      detail: `max=${max}`,
-    });
-  }
-
   if (a.faq_min !== undefined) {
     const n = resp.faq?.length ?? 0;
-    r.push({
-      ok: n >= a.faq_min,
-      label: `faq ≥ ${a.faq_min}`,
-      detail: `found=${n}`,
-    });
+    r.push({ ok: n >= a.faq_min, label: `faq ≥ ${a.faq_min}`, detail: `found=${n}` });
   }
-
+  if (a.product_match_min !== undefined) {
+    const n = analyses.filter((x) => x.productId != null).length;
+    r.push({ ok: n >= a.product_match_min, label: `상품 매칭 ≥ ${a.product_match_min}`, detail: `found=${n}` });
+  }
+  if (a.action_card_id_any) {
+    const ids = new Set((resp.actionCards ?? []).map((c) => c.id));
+    const hit = a.action_card_id_any.some((id) => ids.has(id));
+    r.push({ ok: hit, label: `actionCards.id ∈ {${a.action_card_id_any.join(',')}}`, detail: `ids=${[...ids].join(',')}` });
+  }
   if (a.schema_complete) {
-    // universal에서 이미 다 검증되지만 명시적으로
     r.push({
       ok:
-        resp.sentiment != null &&
-        Array.isArray(resp.topKeywords) &&
+        Array.isArray(resp.analyses) &&
+        Array.isArray(resp.metrics) &&
+        Array.isArray(resp.actionCards) &&
+        Array.isArray(resp.unanswered) &&
+        Array.isArray(resp.productInterest) &&
         Array.isArray(resp.faq) &&
-        Array.isArray(resp.specialComments) &&
         typeof resp.recentSummary === 'string' &&
-        Array.isArray(resp.presenterActions) &&
-        typeof resp.suggestedTopic === 'string',
-      label: 'schema 7개 필드 모두 존재',
+        typeof resp.conversionAdvice === 'string',
+      label: 'schema 8개 필드 모두 존재',
     });
   }
-
-  if (a.suggested_topic_nonempty) {
-    r.push({
-      ok: !!resp.suggestedTopic && resp.suggestedTopic.trim().length > 5,
-      label: 'suggestedTopic 의미 있는 길이',
-      detail: `len=${resp.suggestedTopic?.length ?? 0}`,
-    });
+  if (a.conversion_advice_nonempty) {
+    r.push({ ok: !!resp.conversionAdvice && resp.conversionAdvice.trim().length > 5, label: 'conversionAdvice 의미 있는 길이', detail: `len=${resp.conversionAdvice?.length ?? 0}` });
   }
-
-  if (a.presenter_action_categories_any) {
-    const targets = new Set(a.presenter_action_categories_any);
-    const hasMatch = resp.presenterActions?.some(p => targets.has(p.target));
-    r.push({
-      ok: !!hasMatch,
-      label: `presenterActions.target ∈ {${a.presenter_action_categories_any.join(',')}}`,
-      detail: `targets=${resp.presenterActions?.map(p => p.target).join(',')}`,
-    });
-  }
-
-  if (a.presenter_action_urgent_or_audio) {
-    const hasUrgent = resp.presenterActions?.some(p => p.type === 'urgent');
-    const hasAudio = resp.presenterActions?.some(p => p.target === '음향');
-    r.push({
-      ok: !!(hasUrgent || hasAudio),
-      label: 'presenterActions에 urgent 또는 음향 target 1개 이상',
-      detail: `urgent=${hasUrgent} audio_target=${hasAudio}`,
-    });
+  if (a.recent_summary_nonempty) {
+    r.push({ ok: !!resp.recentSummary && resp.recentSummary.trim().length > 5, label: 'recentSummary 의미 있는 길이', detail: `len=${resp.recentSummary?.length ?? 0}` });
   }
 
   return r;
-}
-
-// ── Dry-run mock response (런너 self-test용) ────────────────────────────────
-
-export function buildMockResponse(): AnalyzeResponse {
-  return {
-    sentiment: { positive: 50, neutral: 30, negative: 20 },
-    topKeywords: [
-      { keyword: '구매', count: 8, trend: 'up_trend' },
-      { keyword: '가격', count: 5, trend: 'stable' },
-      { keyword: '배송', count: 4, trend: 'up_trend' },
-    ],
-    faq: [
-      { question: '가격 얼마?', count: 3, templateAnswer: '여러분 가격은 X원입니다.' },
-      { question: '배송 언제?', count: 2, templateAnswer: '내일 출고 예정이에요.' },
-      { question: '할인 적용?', count: 2, templateAnswer: '쿠폰 자동 적용됩니다.' },
-    ],
-    specialComments: [
-      { text: '가격 얼마?', author: 'A', category: 'purchase_signal', reason: '가격 문의' },
-      { text: '소리 안 들려요', author: 'B', category: 'stream_issue', reason: '음향 문제' },
-      { text: '답답하네요', author: 'C', category: 'complaint', reason: '불만 표현' },
-    ],
-    recentSummary: '최근 댓글은 구매 의사와 가격 문의가 우세하며 일부 기술 이슈가 보고되었습니다.',
-    presenterActions: [
-      { type: 'action', message: '가격 정보를 한 번 더 강조해 주세요.', target: '상품소개' },
-      { type: 'urgent', message: '음향 점검 부탁드립니다.', target: '음향' },
-    ],
-    suggestedTopic: '시청자에게 어떤 색상이 더 어울리는지 의견을 물어보세요!',
-  };
 }

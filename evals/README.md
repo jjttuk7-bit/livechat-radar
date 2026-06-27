@@ -1,28 +1,24 @@
-# LiveChat Radar — Prompt Regression Evaluation Suite
+# LiveChat Radar — 라이브 쇼핑 분석 회귀 평가 스위트
 
-`/api/analyze`의 OpenAI 응답 품질을 **고정된 댓글 시나리오**로 자동 채점하는 회귀 평가 도구.
+`/api/analyze/shop`의 OpenAI 응답 품질을 **고정된 쇼핑 댓글 시나리오**로 자동 채점하는 회귀 평가 도구.
 
 다음 변경 직후 반드시 실행:
-- `src/prompts.ts`의 `STATIC_ANALYZE_SYSTEM_PROMPT` 수정
-- `src/prompts.ts`의 `analyzeJsonSchema` 수정
+- `src/prompts.ts`의 `STATIC_SHOP_ANALYZE_SYSTEM_PROMPT` 수정
+- `src/prompts.ts`의 `shopAnalyzeJsonSchema` 수정
+- `src/lib/simulateShopAnalysis.ts` 시뮬레이터 규칙 수정 (dry-run이 이를 채점)
 - `gpt-4o-mini` ↔ `gpt-4o` 모델 교체
 
 ## 사용법
 
 ```bash
-# Dry-run (기본) — fixture 파싱 + universal assertion self-test, OpenAI 호출 없음
-# fixture-specific assertion은 mock으로 채점할 수 없으므로 스킵됨
+# Dry-run (기본) — 결정적 로컬 시뮬레이터로 universal + fixture-specific 모두 채점. OpenAI 호출 없음.
 npm run eval
 
-# Live — 실제 OpenAI 호출 + universal + fixture-specific 모두 채점 (비용 발생!)
+# Live — 실제 OpenAI 호출 + universal + fixture-specific 채점 (비용 발생!)
 npm run eval:live
 
 # 모델 오버라이드
 npm run eval -- --model gpt-4o
-npm run eval:live -- --model gpt-4o
-
-# 비교: 같은 fixture를 두 모델에 돌려보고 결과 표 비교
-npm run eval:live -- --model gpt-4o-mini
 npm run eval:live -- --model gpt-4o
 ```
 
@@ -30,45 +26,38 @@ npm run eval:live -- --model gpt-4o
 
 | # | Fixture | 시나리오 | 핵심 assertion |
 |---|---------|---------|---------------|
-| 01 | `purchase_heavy` | 쇼핑 라이브, 구매 의사 우세 | purchase_signal ≥ 2, positive ≥ 40 |
-| 02 | `stream_issues` | 기술 장애 빈발 | stream_issue ≥ 1, negative ≥ 20, urgent/음향 액션 |
-| 03 | `complaint_dominant` | 불만/항의 우세 | complaint ≥ 1, negative ≥ 30 |
-| 04 | `mixed_sentiment` | 균형 분포 | 어떤 카테고리도 70 미만 |
-| 05 | `question_heavy` | 질문 다수 | faq ≥ 3 |
-| 06 | `low_volume` | 저밀도 트래픽 | schema 완전성 + suggestedTopic 비어있지 않음 |
+| 01 | `purchase_heavy` | 구매 의사·가격 우세 (상품 등록됨) | 구매 인증 ≥ 2, faq ≥ 3, `closing-now` 카드 |
+| 02 | `stream_issues` | 방송 장애 빈발 | 방송 장애 ≥ 3, `stream-fix` 카드 |
+| 03 | `complaint_dominant` | 불만/항의 우세 | 미응답 ≥ 2, `unanswered-flush`/`objection-trust` 카드 |
+| 04 | `mixed_sentiment` | 균형 분포 | conversionAdvice/recentSummary 비어있지 않음 |
+| 05 | `question_heavy` | 질문 다수 | 미응답 ≥ 5 |
+| 06 | `low_volume` | 저밀도 트래픽 | schema 완전성 + conversionAdvice |
 
-## Universal Assertions (모든 fixture에 적용)
+## Universal Assertions (모든 fixture)
 
-- `sentiment` 합이 100
-- `topKeywords` 1~5개
-- `specialComments` ≤ 5개
-- `specialComments.category` ∈ {complaint, purchase_signal, stream_issue}
-- `presenterActions` 1~5개
-- `presenterActions.type` ∈ {urgent, info, action}
-- `recentSummary` 비어있지 않음 (길이 > 5)
-- `suggestedTopic` 비어있지 않음 (길이 > 5)
+- `analyses.tag` ∈ SHOP_TAGS(37) / `analyses.axis` ∈ SHOP_AXES(6) / axis-tag 매핑 일치
+- `analyses.sentiment` ∈ {positive,neutral,negative} / `analyses.urgency` ∈ {low,medium,high}
+- `metrics` 비어있지 않음 + `status` ∈ {good,normal,warning,danger}
+- `actionCards` ≤ 3 + `priority` 유효
+- `unanswered` tag/urgency 유효
+- `productInterest`/`faq` 배열
+- `recentSummary`/`conversionAdvice` 비어있지 않음
 
 ## 신규 Fixture 추가 방법
 
-1. `fixtures/0N_my_scenario.json` 파일 생성 — 기존 fixture 구조 참조 (`name`, `description`, `streamTitle`, `messages[]`, `assertions{}`)
-2. `assertions{}`에 검증할 키를 채워 넣음 (지원되는 키는 `evals/assertions.ts` `FixtureAssertions` 인터페이스 참조)
+1. `fixtures/0N_scenario.json` 생성 — `name`, `description`, `streamTitle`, `products[]`(선택), `messages[]`, `assertions{}`
+2. `assertions{}` 키는 `evals/assertions.ts`의 `FixtureAssertions` 인터페이스 참조
 3. `npm run eval`로 dry-run 통과 확인 → `npm run eval:live`로 실제 채점
 
 ## 신규 Assertion 추가 방법
 
-1. `evals/assertions.ts`의 `FixtureAssertions` 인터페이스에 필드 추가
+1. `evals/assertions.ts`의 `FixtureAssertions`에 필드 추가
 2. `runFixtureSpecific()`에 검증 로직 추가
-3. `buildMockResponse()`도 새 assertion이 통과하도록 보완 (dry-run 안정성)
-4. 관련 fixture(들)의 `assertions{}`에 키 추가
+3. 관련 fixture의 `assertions{}`에 키 추가
+> dry-run은 결정적 시뮬레이터(`generateSimulatedShopAnalysis`) 출력을 채점하므로 별도 mock 보완은 불필요.
 
 ## 비용 안내
 
 - Dry-run: $0
 - Live 1회 (6 fixture): 약 $0.005 (gpt-4o-mini), $0.05 (gpt-4o) 수준
-- Prompt Caching이 활성화되어 2회차 이후 system 토큰 50% 할인 적용
-
-비용은 종료 시 자동 출력됨 (`예상 비용: ~$X.XX (model 기준)`).
-
-## CI 통합 (선택)
-
-`npm run eval` (dry-run)을 CI pipeline에 포함하면 fixture/assertion 구조 오류만으로도 빌드 실패 처리 가능. Live 모드는 비용/시간 비용이 있어 PR 라벨 기반 트리거 권장.
+- Prompt Caching으로 2회차 이후 system 토큰 50% 할인. 비용은 종료 시 자동 출력.
