@@ -27,7 +27,7 @@ import {
   TAG_AXIS,
   UnansweredQuestion,
   UrgencyLevel,
-} from '../types/liveShopping';
+} from '../types/liveShopping.js';
 
 /** 서버 메시지 느슨한 형태 (server.ts 의 message 객체와 호환) */
 export interface ShopRawMessage {

@@ -12,7 +12,7 @@
  * - json_schema 수정 → src/types.ts 인터페이스와 1:1 매핑 동기화 필요
  */
 
-import { SHOP_AXES, SHOP_TAGS } from './types/liveShopping';
+import { SHOP_AXES, SHOP_TAGS } from './types/liveShopping.js';
 
 // ── 라이브 쇼핑 전용 (S-1) ────────────────────────────────────────────────────
 // 단일 출처: src/types/liveShopping.ts 인터페이스 ↔ 아래 schema ↔ 시뮬레이터(S-2) ↔ App.tsx(S-5)
