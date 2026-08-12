@@ -1,124 +1,141 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * LiveChat Radar — 유튜브 정치·시사 라이브 AI 진행 조연출 (P-5 / P-6).
+ *
+ * 설계 근거: docs/plans/politics-pivot.md
  */
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  Search,
-  Sparkles,
-  Bot,
-  Video,
-  MessageSquare,
-  Clock,
-  Activity,
-  RotateCw,
-  CheckCircle,
-  FileText,
-  X,
-  Copy,
-  AlertCircle,
-  Pause,
-  Award,
-  Flame,
+  Search, Sparkles, Bot, Video, MessageSquare, Activity, RotateCw,
+  FileText, X, AlertCircle, CheckCircle, Pause, Play, Users, Gauge,
 } from 'lucide-react';
 import { ChatMessage, StreamInfo } from './types';
-import { ShopAnalysisResult, ShopReportResult, ShopTimelinePoint, LiveProduct } from './types/liveShopping';
-import { ShopTimelineDashboard } from './components/shop/ShopTimelineDashboard';
-import { ProductBar } from './components/shop/ProductBar';
-import { ProductRegisterModal } from './components/shop/ProductRegisterModal';
-import { ShopKpiStrip } from './components/shop/ShopKpiStrip';
-import { ShopActionCards } from './components/shop/ShopActionCards';
-import { UnansweredQueue } from './components/shop/UnansweredQueue';
-import { AxisDistribution } from './components/shop/AxisDistribution';
-import { ProductInterestRanking } from './components/shop/ProductInterestRanking';
-import { ShopFaqList } from './components/shop/ShopFaqList';
-import { HotLeadBoard } from './components/shop/HotLeadBoard';
-import { ViewerInsights } from './components/shop/ViewerInsights';
-import { ConversionPanel } from './components/shop/ConversionPanel';
-import { ClosingWindowCard } from './components/shop/ClosingWindowCard';
-import { MentionLiftCard } from './components/shop/MentionLiftCard';
-import { PostLiveAnalysis } from './components/shop/PostLiveAnalysis';
-import { ScriptAssist } from './components/shop/ScriptAssist';
-import { ProductTimeBlocks } from './components/shop/ProductTimeBlocks';
-import { buildViewerProfiles, summarizeViewers } from './lib/buildViewerProfiles';
-import { buildConversionFunnel, detectClosingWindow, detectPriceElasticityWarning } from './lib/conversion';
-import { buildPostLiveInsights } from './lib/postLive';
-import { matchPresetAnswers } from './lib/scriptAssist';
-import { MentionMark, ProductBlock } from './types/liveShopping';
+import {
+  TalkAnalysisResult, TalkReportResult, TalkTimelinePoint, LiveIssue,
+} from './types/liveTalk';
+import { IssueBar } from './components/talk/IssueBar';
+import { IssueRegisterModal } from './components/talk/IssueRegisterModal';
+import { TalkKpiStrip } from './components/talk/TalkKpiStrip';
+import { TalkActionCards } from './components/talk/TalkActionCards';
+import { RiskWatchPanel, RiskBanner } from './components/talk/RiskWatchPanel';
+import { UnansweredQueue } from './components/talk/UnansweredQueue';
+import { AgendaRadar } from './components/talk/AgendaRadar';
+import { AxisDistribution } from './components/talk/AxisDistribution';
+import { SupporterBoard } from './components/talk/SupporterBoard';
+import { ParticipationPanel } from './components/talk/ParticipationPanel';
+import { TalkTimelineDashboard } from './components/talk/TalkTimelineDashboard';
+import { SessionHistoryPanel, type ReturningStatsView } from './components/talk/SessionHistoryPanel';
+import type { AgendaTrend, SessionComparison } from './types/liveTalk';
+import { buildSupporterProfiles, summarizeSupporters } from './lib/supporters';
+import { buildParticipationFunnel, detectAppealWindow, deriveStats } from './lib/engagement';
 
-// Timeline 캐핑 — 분석 cadence ~40초 × 40 = ~27분 추이 보존
-const SHOP_TIMELINE_CAP = 40;
+/** 분석 cadence ~40초 × 40 = ~27분 추이 보존 */
+const TIMELINE_CAP = 40;
+
+/**
+ * 피드에 실제로 렌더할 최대 건수.
+ *
+ * CPM 300 × 3시간 = 5만 건이다. 전량을 DOM에 올리면 브라우저가 정지한다.
+ * 저장은 전량 유지하고(리포트가 방송 전체를 대표해야 하므로) **렌더만** 최근 N건으로 제한한다.
+ */
+const FEED_RENDER_CAP = 200;
+
+/**
+ * 실시간 분석에 넘길 시간 윈도우.
+ *
+ * 고정 건수(slice(-80))는 CPM에 따라 커버 시간이 달라져 고CPM에서 유실이 생긴다.
+ * 시간 기준으로 자르면 분석 주기(40초)보다 충분히 길어 유실이 구조적으로 없다.
+ */
+const ANALYZE_WINDOW_MS = 180_000; // 3분
+
+/** 리포트 페이로드 상한 — 초과 시 앞을 자르지 않고 전 구간에서 균등 추출한다 */
+const REPORT_PAYLOAD_CAP = 20_000;
+
+interface L1Summary {
+  total: number;
+  unique: number;
+  dedupeRate: number;
+  authorCount: number;
+  cpm: number;
+  spike: boolean;
+  riskCandidates: number;
+  requestCandidates: number;
+  brigading: number;
+}
 
 export default function App() {
-  // Input URL / Current stream status
+  // 입력 / 스트림 상태
   const [urlInput, setUrlInput] = useState<string>('https://www.youtube.com/live/demo');
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
   const [isLoadingInfo, setIsLoadingInfo] = useState<boolean>(false);
 
-  // Real-time comments
+  // 실시간 댓글
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState<boolean>(false);
-  const [pollingRate, setPollingRate] = useState<number>(3500);
 
-  // CPM tracking variables
+  // CPM
   const [cpm, setCpm] = useState<number>(0);
   const [peakCpm, setPeakCpm] = useState<number>(0);
 
-  // 라이브 쇼핑 AI 분석 결과
-  const [analysis, setAnalysis] = useState<ShopAnalysisResult | null>(null);
+  // AI 분석 결과
+  const [analysis, setAnalysis] = useState<TalkAnalysisResult | null>(null);
+  const [l1, setL1] = useState<L1Summary | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [autoAnalysisEnabled, setAutoAnalysisEnabled] = useState<boolean>(true);
 
-  // 방송 등록 상품 (AI 분석 컨텍스트)
-  const [products, setProducts] = useState<LiveProduct[]>([]);
-  const [showProductModal, setShowProductModal] = useState<boolean>(false);
-  // 미응답 큐 로컬 해소 (호스트가 답변 완료 처리한 질문 id)
-  const [resolvedQuestionIds, setResolvedQuestionIds] = useState<Set<string>>(new Set());
-  // G-2-4: 멘트 효과 마킹
-  const [mentionMarks, setMentionMarks] = useState<MentionMark[]>([]);
-  // G-4-4: 상품 소개 타임블록
-  const [productBlocks, setProductBlocks] = useState<ProductBlock[]>([]);
-  const lastActiveRef = useRef<string | null>(null);
+  // 큐시트
+  const [issues, setIssues] = useState<LiveIssue[]>([]);
+  const [showIssueModal, setShowIssueModal] = useState<boolean>(false);
 
-  // Post-stream report
-  const [report, setReport] = useState<ShopReportResult | null>(null);
+  // 로컬 해소 (진행자가 처리 완료 표시)
+  const [resolvedRequestIds, setResolvedRequestIds] = useState<Set<string>>(new Set());
+  const [resolvedRiskIds, setResolvedRiskIds] = useState<Set<string>>(new Set());
+
+  // 종료 리포트
+  const [report, setReport] = useState<TalkReportResult | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState<boolean>(false);
   const [showReportModal, setShowReportModal] = useState<boolean>(false);
 
-  // Status & notifications
+  // 알림
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Refs for timers & message feed autoscroll
+  // 타임라인
+  const [timeline, setTimeline] = useState<TalkTimelinePoint[]>([]);
+  const [chatAutoScroll, setChatAutoScroll] = useState<boolean>(true);
+
+  // 크로스세션 (P-11)
+  const [comparison, setComparison] = useState<SessionComparison | null>(null);
+  const [agendaTrends, setAgendaTrends] = useState<AgendaTrend[]>([]);
+  const [returningStats, setReturningStats] = useState<ReturningStatsView | null>(null);
+  const [carryOver, setCarryOver] = useState<string[]>([]);
+  const [sessionStoreKind, setSessionStoreKind] = useState<string | null>(null);
+  const [retentionDays, setRetentionDays] = useState<number | null>(null);
+  /** 이 회차의 고유 id — 방송 연결 시 확정 */
+  const sessionIdRef = useRef<string>('');
+  const sessionStartRef = useRef<string>('');
+
+  // ── Refs ───────────────────────────────────────────────────────────────────
+  // setState는 비동기라 타이머 콜백의 클로저가 낡은 값을 본다. 폴링·자동분석이
+  // 최신 상태를 읽어야 하므로 ref로 미러링한다. (2026-06-06 stale closure 버그)
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const autoAnalyzeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const chatListRef = useRef<HTMLDivElement | null>(null);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
   const lastAnalyzedCountRef = useRef<number>(0);
-  // Mirror of isPolling state. setState updates are async, so the closure
-  // captured by pullBatch sees the stale initial false. Use ref for the
-  // re-enqueue guard so polling actually continues after the first batch.
   const isPollingRef = useRef<boolean>(false);
   const pollingRateRef = useRef<number>(3000);
-  // Mirrors for the 40s auto-analyze interval callback.
   const messagesCountRef = useRef<number>(0);
   const isAnalyzingRef = useRef<boolean>(false);
   const runAIAnalysisRef = useRef<() => void>(() => {});
-  // products는 runAIAnalysis 클로저가 최신 값을 봐야 하므로 ref 미러.
-  const productsRef = useRef<LiveProduct[]>([]);
-
-  // Track chat feed height scroll behavior
-  const [chatAutoScroll, setChatAutoScroll] = useState<boolean>(true);
-
-  // 쇼핑 축 시간축 누적 (분석마다 1포인트)
-  const [shopTimeline, setShopTimeline] = useState<ShopTimelinePoint[]>([]);
-  // 최신 cpm을 분석 시점 timeline 포인트에 담기 위한 ref 미러
+  const issuesRef = useRef<LiveIssue[]>([]);
   const cpmRef = useRef<number>(0);
+  const prevCpmRef = useRef<number>(0);
 
-  // Clean local error notification after 5 seconds
+  // ── 알림 자동 해제 ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (errorMsg) {
       const t = setTimeout(() => setErrorMsg(null), 5000);
@@ -128,100 +145,71 @@ export default function App() {
 
   useEffect(() => {
     if (successMsg) {
-      const t = setTimeout(() => setCopiedId(null), 2500);
+      const t = setTimeout(() => setSuccessMsg(null), 4000);
       return () => clearTimeout(t);
     }
   }, [successMsg]);
 
-  // Handle Autoscroll on messages change
+  // ── 자동 스크롤 — 컨테이너만 움직인다 (scrollIntoView는 페이지 전체를 움직임) ─
   useEffect(() => {
     if (chatAutoScroll && chatListRef.current) {
-      chatListRef.current.scrollTo({
-        top: chatListRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
+      chatListRef.current.scrollTo({ top: chatListRef.current.scrollHeight, behavior: 'smooth' });
     }
   }, [messages, chatAutoScroll]);
 
-  // 1. Calculate CPM (Comments Per Minute) based on timestamps of the last minute
+  // ── CPM 계산 ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const calcCpm = () => {
       if (messages.length === 0) return;
-      const now = Date.now();
-      const oneMinuteAgo = now - 60000;
-
-      const recentCount = messages.filter((m) => {
-        const t = new Date(m.timestamp).getTime();
-        return t >= oneMinuteAgo;
-      }).length;
-
+      const oneMinuteAgo = Date.now() - 60000;
+      const recentCount = messages.filter((m) => new Date(m.timestamp).getTime() >= oneMinuteAgo).length;
       setCpm(recentCount);
       cpmRef.current = recentCount;
       if (recentCount > peakCpm) setPeakCpm(recentCount);
     };
-
     const interval = setInterval(calcCpm, 3000);
     return () => clearInterval(interval);
   }, [messages, peakCpm]);
 
-  // analysis 갱신 시 쇼핑 축 timeline에 1포인트 push (구매온도/가격저항/미응답/CPM)
+  // ── 분석마다 타임라인 1포인트 ──────────────────────────────────────────────
   useEffect(() => {
     if (!analysis) return;
-    const metricNum = (id: string): number => {
-      const v = analysis.metrics?.find((m) => m.id === id)?.value;
-      return typeof v === 'number' ? v : 0;
-    };
-    const point: ShopTimelinePoint = {
+    // metric id가 아니라 태그에서 파생한다 — 모델이 id를 매번 다르게 지어내므로
+    // metrics에 의존하면 타임라인이 조용히 0으로 눕는다 (deriveStats 주석 참조)
+    const d = deriveStats(analysis);
+    const point: TalkTimelinePoint = {
       t: Date.now(),
       cpm: cpmRef.current,
-      purchaseTemp: metricNum('purchase_temperature'),
-      priceResistance: metricNum('price_resistance'),
+      rallyHeat: d.rallyHeat,
+      disputeLevel: d.disputeLevel,
       unansweredCount: analysis.unanswered?.length ?? 0,
-      purchased: metricNum('sales_estimate'),
+      riskCount: d.riskCount,
+      supportCount: d.supportSignal,
     };
-    setShopTimeline((prev) => {
+    setTimeline((prev) => {
       const next = [...prev, point];
-      return next.length > SHOP_TIMELINE_CAP ? next.slice(-SHOP_TIMELINE_CAP) : next;
+      return next.length > TIMELINE_CAP ? next.slice(-TIMELINE_CAP) : next;
     });
   }, [analysis]);
 
-  // Keep refs in sync with state so the 40s interval can read latest values.
+  // ── ref 동기화 ─────────────────────────────────────────────────────────────
   useEffect(() => { messagesCountRef.current = messages.length; }, [messages.length]);
   useEffect(() => { isAnalyzingRef.current = isAnalyzing; }, [isAnalyzing]);
-  useEffect(() => { productsRef.current = products; }, [products]);
-
-  // G-4-4: 활성 상품이 바뀌면 이전 블록을 닫고 새 블록을 연다 (StrictMode 중복 방지: ref 가드)
-  const activeProductId = products.find((p) => p.isActive)?.id ?? null;
-  useEffect(() => {
-    if (activeProductId === lastActiveRef.current) return;
-    lastActiveRef.current = activeProductId;
-    const now = new Date().toISOString();
-    setProductBlocks((prev) => {
-      const closed = prev.map((b) => (b.endedAt ? b : { ...b, endedAt: now }));
-      if (!activeProductId) return closed;
-      const prod = productsRef.current.find((p) => p.id === activeProductId);
-      if (!prod) return closed;
-      return [...closed, { id: `blk-${Date.now()}`, productId: activeProductId, name: prod.name, startedAt: now, endedAt: null }];
-    });
-  }, [activeProductId]);
+  useEffect(() => { issuesRef.current = issues; }, [issues]);
   useEffect(() => { runAIAnalysisRef.current = runAIAnalysis; });
 
-  // 2. Automated AI Analysis trigger periodically (Every 40 seconds if new comments exist)
+  // ── 40초 자동 분석 ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isPolling || !autoAnalysisEnabled) return;
 
     const tryInitial = () => {
-      if (messagesCountRef.current > 0 && !isAnalyzingRef.current) {
-        runAIAnalysisRef.current();
-      }
+      if (messagesCountRef.current > 0 && !isAnalyzingRef.current) runAIAnalysisRef.current();
     };
     const initialTimer = setTimeout(tryInitial, 1500);
 
     const id = setInterval(() => {
       const newCount = messagesCountRef.current - lastAnalyzedCountRef.current;
-      if (newCount >= 5 && !isAnalyzingRef.current) {
-        runAIAnalysisRef.current();
-      }
+      if (newCount >= 5 && !isAnalyzingRef.current) runAIAnalysisRef.current();
     }, 40000);
     autoAnalyzeTimerRef.current = id;
 
@@ -232,32 +220,49 @@ export default function App() {
     };
   }, [isPolling, autoAnalysisEnabled]);
 
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => { stopCommentStream(); };
-  }, []);
+  useEffect(() => () => { stopCommentStream(); }, []);
 
-  // Connect & Fetch YouTube Live Chat Stream details
+  // ── 크로스세션 히스토리 로드 ───────────────────────────────────────────────
+  // 회차 기록은 부가 기능이다 — 실패해도 방송 진행을 막지 않고 조용히 넘어간다.
+  const loadSessionHistory = async (currentId?: string) => {
+    try {
+      const q = currentId ? `?currentId=${encodeURIComponent(currentId)}` : '';
+      const res = await fetch(`/api/sessions/history${q}`);
+      const data = await res.json();
+      if (!data.success) return;
+      setComparison(data.comparison ?? null);
+      setAgendaTrends(data.agendaTrends ?? []);
+      setReturningStats(data.returning ?? null);
+      setCarryOver(data.carryOver ?? []);
+      setSessionStoreKind(data.store ?? null);
+      setRetentionDays(data.retentionDays ?? null);
+    } catch {
+      // 저장소가 없거나 접근 불가 — 패널은 빈 상태로 남는다
+    }
+  };
+
+  useEffect(() => { loadSessionHistory(); }, []);
+
+  // ── 스트림 연결 ────────────────────────────────────────────────────────────
   const handleConnectStream = async (demoParam = false) => {
     setErrorMsg(null);
     setSuccessMsg(null);
     setIsLoadingInfo(true);
     stopCommentStream();
     setMessages([]);
-    setNextPageToken(null);
     setPeakCpm(0);
     setCpm(0);
     setAnalysis(null);
+    setL1(null);
     setReport(null);
-    setResolvedQuestionIds(new Set());
-    setShopTimeline([]);
-    setMentionMarks([]);
-    setProductBlocks([]);
-    lastActiveRef.current = null;
+    setResolvedRequestIds(new Set());
+    setResolvedRiskIds(new Set());
+    setTimeline([]);
+    prevCpmRef.current = 0;
 
     const targetUrl = demoParam ? 'demo' : urlInput.trim();
     if (!targetUrl) {
-      setErrorMsg('유튜브 채널 또는 라이브 영상 URL을 올바르게 입력해주세요.');
+      setErrorMsg('유튜브 라이브 영상 URL을 입력해주세요.');
       setIsLoadingInfo(false);
       return;
     }
@@ -281,22 +286,22 @@ export default function App() {
         isDemo: result.isDemo,
         publishedAt: result.publishedAt,
       });
+      setSuccessMsg(`🚀 "${result.title}"에 연결되었습니다.`);
 
-      setSuccessMsg(`🚀 "${result.title}"에 연결되었습니다!`);
+      // 회차 id를 확정한다. 같은 방송을 재연결하면 같은 회차로 갱신되도록
+      // videoId + 날짜를 쓴다 (데모는 매번 같은 videoId라 날짜로 구분된다).
+      sessionIdRef.current = `${result.videoId}-${new Date().toISOString().slice(0, 10)}`;
+      sessionStartRef.current = new Date().toISOString();
 
-      if (result.activeLiveChatId) {
-        startCommentStream(result.activeLiveChatId);
-      } else {
-        setErrorMsg('현재 라이브 중이 아니거나 채팅이 활성화되어 있지 않습니다.');
-      }
+      if (result.activeLiveChatId) startCommentStream(result.activeLiveChatId);
+      else setErrorMsg('현재 라이브 중이 아니거나 채팅이 활성화되어 있지 않습니다.');
     } catch (err: any) {
-      setErrorMsg(`스트림 정보를 가져오는 중에 실패했습니다: ${err.message}`);
+      setErrorMsg(`스트림 정보를 가져오는 중 실패했습니다: ${err.message}`);
     } finally {
       setIsLoadingInfo(false);
     }
   };
 
-  // Start the polling cycle for live chats
   const startCommentStream = (chatId: string) => {
     isPollingRef.current = true;
     setIsPolling(true);
@@ -305,8 +310,7 @@ export default function App() {
     const pullBatch = async () => {
       try {
         const pageTokenQuery = currentToken ? `&nextPageToken=${currentToken}` : '';
-        const fetchUrl = `/api/youtube/chat?liveChatId=${chatId}${pageTokenQuery}`;
-        const response = await fetch(fetchUrl);
+        const response = await fetch(`/api/youtube/chat?liveChatId=${chatId}${pageTokenQuery}`);
         const result = await response.json();
 
         if (!result.success) {
@@ -318,39 +322,12 @@ export default function App() {
         if (newItems.length > 0) {
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
-            const filteredNew = newItems.filter((m) => !existingIds.has(m.id));
-
-            // 경량 프론트 힌트 태그 (AI 분석 전 피드 색상용)
-            const typedNew = filteredNew.map((m) => {
-              const text = m.message;
-              let cat: ChatMessage['category'] = null;
-              let reason = '';
-
-              if (text.includes('소리') || text.includes('마이크') || text.includes('끊김') || text.includes('멈춤') || text.includes('랙')) {
-                cat = 'stream_issue';
-                reason = '송출 품질 피드백 감지';
-              } else if (text.includes('구매') || text.includes('얼마') || text.includes('할인') || text.includes('가격') || text.includes('결제') || text.includes('샀')) {
-                cat = 'purchase_signal';
-                reason = '구매/가격 신호 매핑';
-              } else if (text.includes('비싸') || text.includes('불만') || text.includes('별로') || text.includes('환불')) {
-                cat = 'complaint';
-                reason = '불만/저항 신호 감지';
-              }
-
-              return { ...m, category: cat, reason };
-            });
-
-            return [...prev, ...typedNew];
+            return [...prev, ...newItems.filter((m) => !existingIds.has(m.id))];
           });
         }
 
         currentToken = result.nextPageToken || null;
-        setNextPageToken(currentToken);
-
-        if (result.pollingIntervalMillis) {
-          pollingRateRef.current = result.pollingIntervalMillis;
-          setPollingRate(result.pollingIntervalMillis);
-        }
+        if (result.pollingIntervalMillis) pollingRateRef.current = result.pollingIntervalMillis;
       } catch (e) {
         console.error('Polling tick failure:', e);
       } finally {
@@ -366,17 +343,11 @@ export default function App() {
   const stopCommentStream = () => {
     isPollingRef.current = false;
     setIsPolling(false);
-    if (pollingTimerRef.current) {
-      clearTimeout(pollingTimerRef.current);
-      pollingTimerRef.current = null;
-    }
-    if (autoAnalyzeTimerRef.current) {
-      clearInterval(autoAnalyzeTimerRef.current);
-      autoAnalyzeTimerRef.current = null;
-    }
+    if (pollingTimerRef.current) { clearTimeout(pollingTimerRef.current); pollingTimerRef.current = null; }
+    if (autoAnalyzeTimerRef.current) { clearInterval(autoAnalyzeTimerRef.current); autoAnalyzeTimerRef.current = null; }
   };
 
-  // Trigger 라이브 쇼핑 AI 분석
+  // ── AI 분석 ────────────────────────────────────────────────────────────────
   const runAIAnalysis = async () => {
     if (isAnalyzing || messages.length === 0) return;
     setIsAnalyzing(true);
@@ -385,23 +356,30 @@ export default function App() {
     try {
       lastAnalyzedCountRef.current = messages.length;
 
-      const payload = {
-        messages: messages.slice(-80),
-        streamTitle: streamInfo?.title || '라이브 쇼핑 방송',
-        products: productsRef.current,
-      };
+      // 고정 건수가 아니라 시간 윈도우로 자른다 — 고CPM에서도 분석 주기를 덮는다
+      const cutoff = Date.now() - ANALYZE_WINDOW_MS;
+      const windowed = messages.filter((m) => new Date(m.timestamp).getTime() >= cutoff);
+      const payloadMessages = windowed.length > 0 ? windowed : messages.slice(-200);
 
-      const res = await fetch('/api/analyze/shop', {
+      const res = await fetch('/api/analyze/talk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          messages: payloadMessages,
+          streamTitle: streamInfo?.title || '정치·시사 라이브',
+          issues: issuesRef.current,
+          previousCpm: prevCpmRef.current,
+        }),
       });
 
       const result = await res.json();
       if (result.success && result.analysis) {
         setAnalysis(result.analysis);
+        if (result.l1) setL1(result.l1);
+        prevCpmRef.current = cpmRef.current;
+        if (result.errorInfo) setErrorMsg(result.errorInfo);
       } else {
-        setErrorMsg('AI 댓글 분석 데이터를 수집하는 도중 문제가 발생했습니다.');
+        setErrorMsg('AI 채팅 분석 중 문제가 발생했습니다.');
       }
     } catch (err: any) {
       setErrorMsg(`AI 분석 통신 실패: ${err.message}`);
@@ -410,10 +388,10 @@ export default function App() {
     }
   };
 
-  // Create End-of-Stream comprehensive summary report
+  // ── 종료 리포트 ────────────────────────────────────────────────────────────
   const handleGenerateReport = async () => {
     if (messages.length === 0) {
-      setErrorMsg('분석할 시청자 댓글 데이터가 부족합니다. 먼저 라이브를 연동하거나 데모를 작동하세요.');
+      setErrorMsg('분석할 채팅 데이터가 없습니다. 먼저 라이브에 연결하거나 데모를 실행하세요.');
       return;
     }
     setIsGeneratingReport(true);
@@ -421,24 +399,32 @@ export default function App() {
     setShowReportModal(true);
 
     try {
-      const payload = {
-        messages: messages,
-        streamTitle: streamInfo?.title || 'LiveChat Radar 라이브 쇼핑',
-        peakCpm: peakCpm,
-        products: productsRef.current,
-      };
+      // 상한 초과 시 앞을 자르지 않고 전 구간에서 균등 추출한다.
+      // 앞에서 자르면 긴 방송의 도입부만 남아 리포트가 방송을 대표하지 못한다.
+      let payloadMessages = messages;
+      if (messages.length > REPORT_PAYLOAD_CAP) {
+        const stride = Math.ceil(messages.length / REPORT_PAYLOAD_CAP);
+        payloadMessages = messages.filter((_, i) => i % stride === 0);
+      }
 
-      const res = await fetch('/api/report/shop', {
+      const res = await fetch('/api/report/talk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          messages: payloadMessages,
+          streamTitle: streamInfo?.title || 'LiveChat Radar 정치·시사 라이브',
+          peakCpm,
+          issues: issuesRef.current,
+        }),
       });
 
       const result = await res.json();
       if (result.success && result.report) {
         setReport(result.report);
+        // 리포트가 나오면 이 회차를 기록한다 — 다음 방송의 비교 기준이 된다 (P-11)
+        void saveSession(result.report);
       } else {
-        setErrorMsg(result.error || '방송 종료 리포트를 구성하는 도중 거부되었습니다.');
+        setErrorMsg(result.error || '종료 리포트 생성에 실패했습니다.');
       }
     } catch (err: any) {
       setErrorMsg(`종료 리포트 생성 중 예외 발생: ${err.message}`);
@@ -447,531 +433,327 @@ export default function App() {
     }
   };
 
-  const handleCopyToClipboard = (text: string, elementId: string) => {
+  /**
+   * 회차 저장 (P-11).
+   *
+   * 서버에 넘기는 것은 집계치 + **닉네임 목록**이며, 서버가 해시로 변환해 저장한다 (D-8).
+   * 원문 닉네임이 영속 저장되지 않도록 해싱은 서버에서만 한다 — 클라이언트가 해시를
+   * 만들면 salt가 브라우저에 노출된다.
+   */
+  const saveSession = async (finalReport: TalkReportResult) => {
+    const id = sessionIdRef.current;
+    if (!id) return;
+
+    const avgHeat =
+      timeline.length > 0
+        ? timeline.reduce((s, p) => s + p.rallyHeat, 0) / timeline.length
+        : 0;
+
+    try {
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          title: streamInfo?.title || '정치·시사 라이브',
+          startedAt: sessionStartRef.current || new Date().toISOString(),
+          endedAt: new Date().toISOString(),
+          analysis,
+          report: finalReport,
+          timelineAvgHeat: avgHeat,
+          peakCpm,
+          authors: [...new Set(messages.map((m) => m.author).filter(Boolean))],
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccessMsg(`이 회차를 기록했습니다 (참여자 ${data.saved.participantCount}명).`);
+        await loadSessionHistory(id);
+      }
+    } catch {
+      // 저장 실패는 방송 진행과 무관하다 — 조용히 넘어간다
+    }
+  };
+
+  const handleCopy = (text: string, elementId: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(elementId);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // 상품 관리
-  const handleAddProduct = (product: LiveProduct) => {
-    setProducts((prev) => {
-      // active 단일 보장
-      if (product.isActive) return [...prev.map((p) => ({ ...p, isActive: false })), product];
-      return [...prev, product];
-    });
-  };
-  const handleSetActiveProduct = (id: string) => {
-    setProducts((prev) => prev.map((p) => ({ ...p, isActive: p.id === id ? !p.isActive : false })));
-  };
-  const handleRemoveProduct = (id: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
-  };
-  const handleResolveQuestion = (id: string) => {
-    setResolvedQuestionIds((prev) => new Set(prev).add(id));
+  const handleSetActiveIssue = (id: string) => {
+    setIssues((prev) => prev.map((i) => ({ ...i, isActive: i.id === id ? !i.isActive : false })));
   };
 
-  // 미응답 큐 (로컬 해소 제외)
-  const visibleUnanswered = (analysis?.unanswered ?? []).filter((q) => !resolvedQuestionIds.has(q.id));
+  // ── 파생 ───────────────────────────────────────────────────────────────────
+  const visibleRisks = useMemo(
+    () => (analysis?.riskAlerts ?? []).filter((r) => !resolvedRiskIds.has(r.id)),
+    [analysis, resolvedRiskIds],
+  );
 
-  // G-1-1: 시청자(댓글러) 단위 핫리드 프로필 (author 집계, 신규 호출 없음)
-  const viewerProfiles = useMemo(
-    () => buildViewerProfiles(analysis?.analyses ?? [], analysis?.unanswered ?? [], messages),
+  // 렌더는 최근 N건만 — 전량 렌더는 고CPM에서 브라우저를 멈춘다
+  const renderedMessages = useMemo(() => messages.slice(-FEED_RENDER_CAP), [messages]);
+
+  // P-8: 시청자·참여 파생 (신규 AI 호출 없음, analyses에서 계산)
+  const supporters = useMemo(
+    () => buildSupporterProfiles(analysis?.analyses ?? [], analysis?.unanswered ?? [], messages),
     [analysis, messages],
   );
-  // G-2-1: 전환 퍼널 (시청자 프로필에서 파생)
-  const conversionFunnel = useMemo(() => buildConversionFunnel(viewerProfiles), [viewerProfiles]);
-  // G-2-3: 클로징 윈도우 감지
-  const closingWindow = useMemo(() => detectClosingWindow(analysis), [analysis]);
-  // G-1-2/3/4: 시청자 세그먼트·망설임·트롤 요약
-  const viewerSummary = useMemo(() => summarizeViewers(viewerProfiles), [viewerProfiles]);
-  // G-2-5: 가격 탄력 경고
-  const priceWarning = useMemo(() => detectPriceElasticityWarning(analysis), [analysis]);
-  // G-2-4: 현재 누적 구매/온도 (멘트 리프트 측정 기준)
-  const metricValue = (id: string): number => {
-    const v = analysis?.metrics?.find((m) => m.id === id)?.value;
-    return typeof v === 'number' ? v : 0;
-  };
-  const currentPurchased = metricValue('sales_estimate');
-  const currentTemp = metricValue('purchase_temperature');
-
-  const handleAddMark = (label: string) => {
-    setMentionMarks((prev) => [
-      ...prev,
-      { id: `mk-${Date.now()}`, label, at: new Date().toISOString(), baselinePurchased: currentPurchased, baselineTemp: currentTemp },
-    ]);
-  };
-  const handleClearMarks = () => setMentionMarks([]);
-
-  // G-3: 종료 후 심화 분석 (세션 데이터 파생)
-  const postLiveInsights = useMemo(
-    () => buildPostLiveInsights({ timeline: shopTimeline, marks: mentionMarks, analysis, summary: viewerSummary }),
-    [shopTimeline, mentionMarks, analysis, viewerSummary],
-  );
-  // G-4-3: 스크립트 어시스트 (셀링포인트 + 준비된 답변 매칭)
-  const activeProduct = products.find((p) => p.isActive) ?? null;
-  const presetMatches = useMemo(() => matchPresetAnswers(visibleUnanswered, products), [visibleUnanswered, products]);
-
-  // 피드 힌트 카운트
-  const totalPurchaseSignals = messages.filter((m) => m.category === 'purchase_signal').length;
-  const totalStreamIssues = messages.filter((m) => m.category === 'stream_issue').length;
+  const supporterSummary = useMemo(() => summarizeSupporters(supporters), [supporters]);
+  const funnel = useMemo(() => buildParticipationFunnel(supporters), [supporters]);
+  const appeal = useMemo(() => detectAppealWindow(analysis, timeline), [analysis, timeline]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#020617] text-slate-200 antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
-
-      {/* Header Bar */}
-      <header className="h-16 shrink-0 border-b border-[rgba(56,189,248,0.15)] bg-slate-950/60 backdrop-blur-md flex items-center justify-between px-6 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-cyan-600/90 rounded-lg flex items-center justify-center border border-cyan-400/40 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
-            <Activity size={20} className="text-white animate-pulse" />
+    <div className="min-h-screen bg-[#020617] text-slate-200 font-sans">
+      {/* ── 헤더 ── */}
+      <header className="border-b border-slate-800 bg-slate-950/60 sticky top-0 z-30 backdrop-blur">
+        <div className="px-4 py-2.5 flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-indigo-600 flex items-center justify-center">
+              <Activity size={16} className="text-white" />
+            </div>
+            <div className="leading-tight">
+              <h1 className="text-[13px] font-extrabold text-slate-100">LiveChat Radar</h1>
+              <p className="text-[9px] text-slate-500">정치·시사 라이브 AI 진행 조연출</p>
+            </div>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-extrabold tracking-tighter text-white">LiveChat Radar</h1>
-              <span className="mono text-[10px] bg-cyan-950 text-cyan-400 px-1.5 py-0.2 border border-cyan-800/60 rounded">
-                LIVE SHOPPING
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-500 font-sans">유튜브 라이브 쇼핑 전용 AI 판매 조연출</p>
-          </div>
-        </div>
 
-        <div className="hidden md:flex items-center gap-4 text-xs font-mono">
-          {streamInfo ? (
-            <div className="flex items-center gap-2 bg-slate-900 border border-emerald-500/20 px-3 py-1.5 rounded-lg shadow-sm">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 absolute"></span>
-              <span className="text-emerald-400 font-bold ml-1.5 uppercase tracking-wide">
-                [ {streamInfo.isDemo ? 'DEMO-LIVE' : 'CONNECTED'} ]
-              </span>
-              <span className="text-slate-400 max-w-[200px] truncate">{streamInfo.title}</span>
+          <div className="flex items-center gap-1.5 flex-1 min-w-[240px]">
+            <div className="relative flex-1 min-w-0">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600" />
+              <input
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleConnectStream()}
+                placeholder="유튜브 라이브 URL 또는 'demo'"
+                className="w-full bg-slate-900/70 border border-slate-800 rounded-lg pl-8 pr-2.5 py-1.5 text-[11px] focus:outline-none focus:border-cyan-500/50 font-sans"
+              />
             </div>
-          ) : (
-            <div className="flex items-center gap-2 bg-slate-900/40 border border-slate-800 px-3 py-1.5 rounded-lg text-slate-500">
-              <span className="w-2 h-2 rounded-full bg-slate-600"></span>
-              <span>방송 스트림 대기 상태</span>
-            </div>
-          )}
+            <button
+              onClick={() => handleConnectStream()}
+              disabled={isLoadingInfo}
+              className="px-2.5 py-1.5 rounded-lg bg-cyan-500/15 border border-cyan-500/40 text-[11px] text-cyan-300 hover:bg-cyan-500/25 disabled:opacity-50 flex items-center gap-1 shrink-0"
+            >
+              {isLoadingInfo ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <Video className="w-3.5 h-3.5" />}
+              연결
+            </button>
+            <button
+              onClick={() => handleConnectStream(true)}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-800 text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1 shrink-0"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-400" /> 데모
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isPolling ? (
+              <button onClick={stopCommentStream} className="px-2.5 py-1.5 rounded-lg border border-amber-500/40 text-[11px] text-amber-300 flex items-center gap-1">
+                <Pause size={12} /> 중단
+              </button>
+            ) : (
+              streamInfo?.activeLiveChatId && (
+                <button onClick={() => startCommentStream(streamInfo.activeLiveChatId!)} className="px-2.5 py-1.5 rounded-lg border border-emerald-500/40 text-[11px] text-emerald-300 flex items-center gap-1">
+                  <Play size={12} /> 재개
+                </button>
+              )
+            )}
+            <button
+              onClick={runAIAnalysis}
+              disabled={isAnalyzing || messages.length === 0}
+              className="px-2.5 py-1.5 rounded-lg border border-indigo-500/40 text-[11px] text-indigo-300 hover:bg-indigo-500/10 disabled:opacity-40 flex items-center gap-1"
+            >
+              {isAnalyzing ? <RotateCw size={12} className="animate-spin" /> : <Bot size={12} />} 분석
+            </button>
+            <button
+              onClick={handleGenerateReport}
+              disabled={messages.length === 0}
+              className="px-2.5 py-1.5 rounded-lg border border-slate-800 text-[11px] text-slate-400 hover:text-slate-200 disabled:opacity-40 flex items-center gap-1"
+            >
+              <FileText size={12} /> 리포트
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Control panel & URL Connector banner */}
-      <div className="px-6 py-3.5 bg-slate-900/60 border-b border-[rgba(56,189,248,0.1)] flex flex-wrap gap-4 items-center justify-between">
-        <div className="flex flex-1 min-w-[280px] max-w-3xl items-center gap-2">
-          <div className="relative flex-1">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500">
-              <Search size={15} />
-            </span>
-            <input
-              type="text"
-              placeholder="유튜브 라이브 쇼핑 URL 혹은 'demo' 입력..."
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              className="w-full bg-slate-950/90 border border-slate-800 hover:border-slate-700 focus:outline-none focus:border-cyan-500 rounded-lg text-xs leading-relaxed py-2.5 pl-10 pr-4 text-slate-300 placeholder-slate-600 font-mono transition-colors"
-            />
+      <main className="p-3 space-y-3">
+        {/* 알림 */}
+        {errorMsg && (
+          <div className="bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2 flex items-center gap-2">
+            <AlertCircle size={15} className="text-rose-400 shrink-0" />
+            <span className="text-[11px] text-rose-200">{errorMsg}</span>
           </div>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              id="connect_stream_btn"
-              onClick={() => handleConnectStream(false)}
-              disabled={isLoadingInfo}
-              className="bg-cyan-600 hover:bg-cyan-500 text-white disabled:bg-slate-800 disabled:text-slate-500 text-xs font-bold px-4 py-2.5 rounded-lg transition-all flex items-center gap-2"
-            >
-              {isLoadingInfo ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <Video className="w-3.5 h-3.5" />}
-              연동하기
-            </button>
-
-            <button
-              id="demo_stream_btn"
-              onClick={() => handleConnectStream(true)}
-              className="bg-purple-950/40 border border-purple-800/80 hover:bg-purple-900/60 text-purple-300 text-xs font-bold px-4 py-2.5 rounded-lg transition-all flex items-center gap-1.5"
-              title="YouTube API 키 없이 간편하게 작동 테스트하는 시뮬레이션 모드"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-              데모 모드
-            </button>
+        )}
+        {successMsg && (
+          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2 flex items-center gap-2">
+            <CheckCircle size={15} className="text-emerald-400 shrink-0" />
+            <span className="text-[11px] text-emerald-200">{successMsg}</span>
           </div>
-        </div>
+        )}
 
-        <div className="flex items-center gap-3">
-          {isPolling && (
-            <div className="flex items-center gap-2">
-              <button
-                id="toggle_poll_btn"
-                onClick={stopCommentStream}
-                className="bg-rose-950/20 text-rose-400 hover:bg-rose-900/20 border border-rose-900/50 px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors"
-                title="댓글 수집 일시정지"
-              >
-                <Pause size={12} />일시 중단
-              </button>
+        {/* 리스크 배너 — 임계 초과 시에만 (P-6) */}
+        <RiskBanner alerts={visibleRisks} />
 
-              <button
-                id="instant_analyze_btn"
-                onClick={runAIAnalysis}
-                disabled={isAnalyzing || messages.length === 0}
-                className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold text-xs px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5"
-                title="수집된 댓글 기반으로 OpenAI 쇼핑 분석 즉시 실행"
-              >
-                {isAnalyzing ? <RotateCw size={12} className="animate-spin" /> : <Bot size={12} />}
-                실시간 AI 재분석
-              </button>
-            </div>
-          )}
+        {/* 큐시트 바 */}
+        <IssueBar issues={issues} onOpenModal={() => setShowIssueModal(true)} onSetActive={handleSetActiveIssue} />
 
-          <label className="flex items-center gap-2 text-xs font-sans text-slate-400 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={autoAnalysisEnabled}
-              onChange={() => setAutoAnalysisEnabled(!autoAnalysisEnabled)}
-              className="rounded border-slate-800 bg-slate-950 text-cyan-600 focus:ring-0"
-            />
-            <span>40초 마다 AI 자동 분석</span>
-          </label>
-        </div>
-      </div>
+        {/* KPI */}
+        <TalkKpiStrip metrics={analysis?.metrics ?? []} />
 
-      {/* 등록 상품 바 */}
-      <ProductBar
-        products={products}
-        onAddClick={() => setShowProductModal(true)}
-        onSetActive={handleSetActiveProduct}
-        onRemove={handleRemoveProduct}
-      />
-
-      {/* Toast feedback */}
-      {errorMsg && (
-        <div className="bg-red-950/90 border-b border-red-500/40 text-red-100 text-xs px-6 py-2.5 flex items-center gap-2.5 font-sans animate-fadeIn">
-          <AlertCircle size={15} className="text-red-400 shrink-0" />
-          <span className="flex-1">{errorMsg}</span>
-          <button onClick={() => setErrorMsg(null)} className="text-red-400 hover:text-white"><X size={14} /></button>
-        </div>
-      )}
-      {successMsg && (
-        <div className="bg-emerald-950/90 border-b border-emerald-500/40 text-emerald-100 text-xs px-6 py-2.5 flex items-center gap-2.5 font-sans animate-fadeIn">
-          <CheckCircle size={15} className="text-emerald-400 shrink-0" />
-          <span className="flex-1">{successMsg}</span>
-          <button onClick={() => setSuccessMsg(null)} className="text-emerald-400 hover:text-white"><X size={14} /></button>
-        </div>
-      )}
-
-      {/* MAIN LAYOUT */}
-      <main className="flex-1 flex flex-col lg:flex-row gap-4 p-4 overflow-hidden max-h-[calc(100vh-160px)]">
-
-        {/* LEFT: Live Comments Feed */}
-        <section className="lg:basis-1/4 lg:flex-1 min-w-0 bg-slate-950/80 border border-[rgba(56,189,248,0.15)] rounded-xl flex flex-col overflow-hidden max-h-full">
-          <div className="px-4 py-3 bg-slate-900/40 border-b border-[rgba(56,189,248,0.15)] flex justify-between items-center shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-              <span className="text-xs font-bold tracking-wider text-slate-300 uppercase">Live Chat Feed</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] px-1.5 py-0.5 bg-slate-800 text-slate-400 rounded font-mono uppercase">{messages.length} 수집됨</span>
-              <button
-                onClick={() => setChatAutoScroll(!chatAutoScroll)}
-                className={`text-[9px] px-1.5 py-0.5 rounded transition-all font-mono uppercase ${chatAutoScroll ? 'bg-cyan-950/60 border border-cyan-800 text-cyan-400' : 'bg-slate-800 text-slate-500 border border-transparent'}`}
-                title="자동 스크롤"
-              >
-                {chatAutoScroll ? 'SCROLL: ON' : 'SCROLL: OFF'}
-              </button>
-            </div>
+        {/* L1 상태 줄 — AI 응답 없이도 채팅 규모를 보여준다 */}
+        {l1 && (
+          <div className="flex items-center gap-3 flex-wrap px-3 py-1.5 bg-slate-900/40 border border-slate-800 rounded-lg text-[10px] font-mono text-slate-500">
+            <span className="flex items-center gap-1"><Gauge size={11} className="text-cyan-400" />CPM {l1.cpm}{l1.spike && <span className="text-amber-400">急</span>}</span>
+            <span className="flex items-center gap-1"><Users size={11} className="text-violet-400" />{l1.authorCount}명</span>
+            <span>수집 {l1.total} / 고유 {l1.unique} (중복 {l1.dedupeRate}%)</span>
+            <span className="text-rose-400">리스크 후보 {l1.riskCandidates}</span>
+            <span className="text-emerald-400">요구 후보 {l1.requestCandidates}</span>
+            {l1.brigading > 0 && <span className="text-amber-400">도배 신호 {l1.brigading}</span>}
           </div>
+        )}
 
-          {streamInfo && (
-            <div className="p-3 bg-slate-900/60 border-b border-slate-800 flex items-center gap-3 shrink-0">
-              <img src={streamInfo.thumbnailUrl} alt="Thumbnail" className="w-12 h-9 object-cover rounded border border-slate-700 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold text-slate-200 truncate leading-snug">{streamInfo.title}</p>
-                <p className="text-[10px] text-slate-500 truncate mt-0.5">CH: {streamInfo.channelName}</p>
-              </div>
+        {/* 본문 — flex (grid는 Recharts 폭 붕괴를 유발했던 이력이 있다) */}
+        <div className="flex flex-col lg:flex-row gap-3">
+          {/* 좌 */}
+          <div className="flex-1 min-w-0 space-y-3">
+            <TalkActionCards cards={analysis?.actionCards ?? []} onCopy={handleCopy} copiedId={copiedId} />
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 min-w-0"><AgendaRadar items={analysis?.agendaInterest ?? []} /></div>
+              <div className="flex-1 min-w-0"><AxisDistribution analyses={analysis?.analyses ?? []} /></div>
             </div>
-          )}
 
-          <div ref={chatListRef} className="flex-1 overflow-y-auto p-3 space-y-3 font-mono text-[11px]">
-            {messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center text-slate-600 py-12 px-4 space-y-3">
-                <MessageSquare size={32} className="text-slate-800 pointer-events-none" />
-                <p className="max-w-[200px] leading-relaxed">
-                  유튜브 라이브 쇼핑 링크를 연결하거나 <strong className="text-purple-400 underline cursor-pointer" onClick={() => handleConnectStream(true)}>데모 모드</strong>를 시작하세요.
-                </p>
-              </div>
-            ) : (
-              messages.map((m) => {
-                let rowBg = 'hover:bg-slate-900/45 p-1 px-1.5 rounded transition-all';
-                let authorBadge = 'text-slate-400';
+            {/* 참여 퍼널 + 어필 윈도우 (P-8) */}
+            <ParticipationPanel funnel={funnel} appeal={appeal} onCopy={handleCopy} copiedId={copiedId} />
 
-                if (m.isOwner) {
-                  rowBg = 'bg-rose-500/10 border border-rose-500/20 p-1.5 px-2 rounded-lg';
-                  authorBadge = 'text-rose-400 font-extrabold flex items-center gap-1';
-                } else if (m.isSponsor) {
-                  rowBg = 'bg-emerald-500/5 border border-emerald-500/10 p-1.5 px-2 rounded-lg';
-                  authorBadge = 'text-emerald-400 font-semibold flex items-center gap-1';
-                } else if (m.isModerator) {
-                  rowBg = 'bg-cyan-500/5 border border-cyan-500/10 p-1.5 px-2 rounded-lg';
-                  authorBadge = 'text-cyan-400 font-semibold flex items-center gap-1';
-                }
+            {/* 시간축 추이 (P-9) */}
+            <TalkTimelineDashboard points={timeline} />
 
-                let tagMarkup = null;
-                if (m.category === 'purchase_signal') {
-                  tagMarkup = <span className="text-[9px] bg-green-500/10 text-green-400 px-1 border border-green-500/20 font-sans rounded shrink-0 uppercase tracking-tighter">🛒구매신호</span>;
-                } else if (m.category === 'stream_issue') {
-                  tagMarkup = <span className="text-[9px] bg-amber-500/10 text-amber-500 px-1 border border-amber-500/20 font-sans rounded shrink-0 uppercase tracking-tighter">⚠️방송장애</span>;
-                } else if (m.category === 'complaint') {
-                  tagMarkup = <span className="text-[9px] bg-rose-500/10 text-rose-400 px-1 border border-rose-500/20 font-sans rounded shrink-0 uppercase tracking-tighter">🚨가격저항</span>;
-                }
-
-                return (
-                  <div key={m.id} className={`${rowBg} flex flex-col gap-1`}>
-                    <div className="flex items-center justify-between gap-1.5 shrink-0">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <img
-                          src={m.avatar}
-                          alt="avatar"
-                          onError={(e) => { e.currentTarget.src = `https://api.dicebear.com/7.x/pixel-art/svg?seed=${encodeURIComponent(m.author)}`; }}
-                          className="w-3.5 h-3.5 rounded-full bg-slate-800 border border-slate-700/60"
-                        />
-                        <span className={`${authorBadge} text-[11px] truncate font-bold`}>
-                          {m.author}
-                          {m.isSponsor && <span className="text-[8px] bg-emerald-950 text-emerald-400 border border-emerald-800 py-0.2 px-1 rounded ml-1 scale-90">멤버십</span>}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {tagMarkup}
-                        <span className="text-slate-600 text-[9px] tabular-nums shrink-0">
-                          {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-slate-300 font-sans break-words pl-5 leading-normal">{m.message}</p>
-                  </div>
-                );
-              })
+            {/* 진행 조언 */}
+            {analysis?.hostAdvice && (
+              <section className="bg-slate-900/60 border border-cyan-500/20 rounded-xl p-3">
+                <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">진행 조언</h2>
+                <p className="text-[12px] text-cyan-200 leading-snug">{analysis.hostAdvice}</p>
+                {analysis.recentSummary && (
+                  <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">{analysis.recentSummary}</p>
+                )}
+              </section>
             )}
-            <div ref={chatEndRef} />
-          </div>
-        </section>
-
-        {/* CENTER: Shop dashboard */}
-        <section className="lg:basis-2/4 lg:flex-[2] min-w-0 flex flex-col gap-4 overflow-y-auto max-h-full pr-1">
-
-          {/* Mini KPI: 누적 댓글 / CPM */}
-          <div className="grid grid-cols-2 gap-3 shrink-0">
-            <div className="bg-slate-900/60 border border-[rgba(56,189,248,0.15)] p-4 rounded-xl">
-              <div className="text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider font-sans">누적 수집 댓글</div>
-              <div className="text-3xl font-extrabold text-white leading-tight font-mono tracking-tight">{messages.length.toLocaleString()}</div>
-              <div className="text-[9px] text-slate-400 mt-1 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                구매신호 {totalPurchaseSignals} · 방송장애 {totalStreamIssues}
-              </div>
-            </div>
-            <div className="bg-slate-900/60 border border-[rgba(56,189,248,0.15)] p-4 rounded-xl">
-              <div className="text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider font-sans">분당 댓글수 (CPM)</div>
-              <div className="text-3xl font-extrabold text-cyan-400 leading-tight font-mono tracking-tight flex items-baseline gap-1">
-                {cpm}<span className="text-xs text-slate-500 font-normal">/min</span>
-              </div>
-              <div className="text-[9px] text-slate-400 mt-1 italic font-mono truncate">최고 기록: {peakCpm} CPM</div>
-            </div>
           </div>
 
-          {/* KPI 스트립 (쇼핑 지표 7종) */}
-          <div className="shrink-0">
-            <ShopKpiStrip metrics={analysis?.metrics ?? []} />
-          </div>
-
-          {/* 전환 퍼널 + 판매 모멘텀 + 가격 탄력 경고 */}
-          <div className="shrink-0">
-            <ConversionPanel funnel={conversionFunnel} timeline={shopTimeline} priceWarning={priceWarning} />
-          </div>
-
-          {/* 멘트 효과 추적 */}
-          <div className="shrink-0">
-            <MentionLiftCard
-              marks={mentionMarks}
-              currentPurchased={currentPurchased}
-              currentTemp={currentTemp}
-              onAdd={handleAddMark}
-              onClear={handleClearMarks}
+          {/* 우 */}
+          <div className="w-full lg:w-[340px] shrink-0 space-y-3">
+            {/* 리스크 워치가 최상단 — 채널 방어가 이 제품의 킬러 기능 (P-6) */}
+            <RiskWatchPanel
+              alerts={analysis?.riskAlerts ?? []}
+              resolvedIds={resolvedRiskIds}
+              onResolve={(id) => setResolvedRiskIds((prev) => new Set(prev).add(id))}
             />
-          </div>
+            <UnansweredQueue
+              items={analysis?.unanswered ?? []}
+              resolvedIds={resolvedRequestIds}
+              onResolve={(id) => setResolvedRequestIds((prev) => new Set(prev).add(id))}
+            />
 
-          {/* 6축 분포 + 상품별 관심 랭킹 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 shrink-0">
-            <AxisDistribution analyses={analysis?.analyses ?? []} />
-            <ProductInterestRanking items={analysis?.productInterest ?? []} />
-          </div>
+            {/* 후원·충성 보드 (P-8) — 비민감 축만 표시 (D-1/D-2) */}
+            <SupporterBoard profiles={supporters} summary={supporterSummary} />
 
-          {/* 상품 소개 타임블록 */}
-          <div className="shrink-0">
-            <ProductTimeBlocks blocks={productBlocks} messages={messages} timeline={shopTimeline} />
-          </div>
+            {/* 회차 비교 · 아젠다 수명 · 단골 누적 (P-11) */}
+            <SessionHistoryPanel
+              comparison={comparison}
+              agendaTrends={agendaTrends}
+              returning={returningStats}
+              carryOver={carryOver}
+              store={sessionStoreKind}
+              retentionDays={retentionDays}
+            />
 
-          {/* 판매 흐름 시간축 */}
-          <div className="shrink-0 w-full min-w-0">
-            <ShopTimelineDashboard points={shopTimeline} />
-          </div>
-
-          {/* 상품 FAQ */}
-          <ShopFaqList faq={analysis?.faq ?? []} onCopy={handleCopyToClipboard} copiedId={copiedId} />
-        </section>
-
-        {/* RIGHT: 판매 처방 / 미응답 큐 / 요약 */}
-        <section className="lg:basis-1/4 lg:flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto max-h-full">
-
-          {/* 클로징 윈도우 카운트다운 (G-2-3) */}
-          <ClosingWindowCard
-            window={closingWindow}
-            refreshKey={analysis?.analyzedAt}
-            onCopy={handleCopyToClipboard}
-            copiedId={copiedId}
-          />
-
-          {/* 클로징 처방 하이라이트 */}
-          <div className="bg-gradient-to-br from-rose-950/40 to-amber-950/20 border-2 border-rose-600/40 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Flame className="w-4 h-4 text-rose-400" />
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider font-sans">지금 클로징 전략</h3>
-            </div>
-            <p className="text-[12px] text-amber-100 font-sans leading-relaxed">
-              {analysis?.conversionAdvice || '상품을 등록하고 라이브를 연동하면 지금 이 순간 가장 효과적인 판매 전략을 처방합니다.'}
-            </p>
-          </div>
-
-          {/* 핫리드 보드 (살 것 같은 시청자) */}
-          <HotLeadBoard viewers={viewerProfiles} />
-
-          {/* 시청자 세그먼트 · 망설임 · 트롤 */}
-          <ViewerInsights summary={viewerSummary} />
-
-          {/* 실시간 액션 카드 */}
-          <ShopActionCards cards={analysis?.actionCards ?? []} onCopy={handleCopyToClipboard} copiedId={copiedId} />
-
-          {/* 미응답 질문 큐 */}
-          <UnansweredQueue items={visibleUnanswered} onResolve={handleResolveQuestion} onCopy={handleCopyToClipboard} copiedId={copiedId} />
-
-          {/* 스크립트 어시스트 (셀링포인트 + 준비된 답변) */}
-          <ScriptAssist activeProduct={activeProduct} matches={presetMatches} onCopy={handleCopyToClipboard} copiedId={copiedId} />
-
-          {/* 최근 요약 + 리포트 */}
-          <div className="bg-slate-900/60 border border-[rgba(56,189,248,0.15)] rounded-xl p-4 flex flex-col flex-1 min-h-[180px] justify-between">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest font-sans flex items-center gap-1.5">
-                  <Clock size={12} className="text-indigo-400" />최근 흐름 요약
-                </h3>
-                {analysis && <span className="text-[9px] text-slate-500 font-mono">{analysis.analyzedAt} 기준</span>}
-              </div>
-              <div className="text-[11px] text-slate-300 leading-relaxed font-sans">
-                {analysis?.recentSummary ? (
-                  <p className="italic pl-2.5 border-l-2 border-cyan-500/40 font-normal">{analysis.recentSummary}</p>
+            {/* 라이브 피드 */}
+            <section className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+              <header className="px-3 py-2.5 border-b border-slate-800 flex items-center gap-1.5">
+                <MessageSquare size={15} className="text-slate-400 shrink-0" />
+                <h2 className="text-[11px] font-bold text-slate-200">라이브 피드</h2>
+                <span className="ml-auto text-[10px] font-mono text-slate-500">
+                  {messages.length > FEED_RENDER_CAP ? `최근 ${FEED_RENDER_CAP} / ${messages.length}` : messages.length}
+                </span>
+                <button
+                  onClick={() => setChatAutoScroll((v) => !v)}
+                  className={`text-[9px] px-1.5 py-0.5 rounded border ${chatAutoScroll ? 'border-cyan-500/40 text-cyan-300' : 'border-slate-700 text-slate-500'}`}
+                >
+                  자동
+                </button>
+              </header>
+              <div ref={chatListRef} className="h-64 overflow-y-auto p-2.5 space-y-1.5 font-mono text-[11px]">
+                {renderedMessages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center text-slate-600 gap-2">
+                    <MessageSquare size={28} className="text-slate-800" />
+                    <p className="text-[11px] italic">라이브에 연결하면 채팅이 표시됩니다.</p>
+                  </div>
                 ) : (
-                  <p className="text-slate-500 italic">댓글이 분석되면 최근 채팅 흐름과 분위기를 요약합니다.</p>
+                  renderedMessages.map((m) => (
+                    <div key={m.id} className="leading-snug break-words">
+                      <span className={m.isSponsor ? 'text-violet-400' : m.isModerator ? 'text-emerald-400' : 'text-slate-500'}>
+                        {m.author}
+                      </span>
+                      <span className="text-slate-600">: </span>
+                      <span className="text-slate-300">{m.message}</span>
+                    </div>
+                  ))
                 )}
               </div>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-slate-800/80 shrink-0">
-              <button
-                id="generate_end_report_btn"
-                onClick={handleGenerateReport}
-                className="w-full py-2.5 bg-slate-800 border border-slate-700/60 hover:bg-slate-700/80 transition-colors text-white font-extrabold rounded-lg text-xs tracking-wider uppercase flex items-center justify-center gap-2 cursor-pointer shadow-sm shadow-black"
-                title="방송 종료 종합 리포트 생성"
-              >
-                <FileText size={13} className="text-rose-400" />방송 종료 리포트 생성
-              </button>
-            </div>
+            </section>
           </div>
-        </section>
+        </div>
       </main>
 
-      {/* 상품 등록 모달 */}
-      <ProductRegisterModal
-        open={showProductModal}
-        onClose={() => setShowProductModal(false)}
-        onAdd={handleAddProduct}
-        hasActive={products.some((p) => p.isActive)}
-      />
+      {/* 큐시트 모달 */}
+      {showIssueModal && (
+        <IssueRegisterModal
+          issues={issues}
+          onClose={() => setShowIssueModal(false)}
+          onSave={(next) => { setIssues(next); setSuccessMsg('큐시트를 저장했습니다.'); }}
+        />
+      )}
 
-      {/* REPORT MODAL */}
+      {/* 리포트 모달 */}
       {showReportModal && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#0b1329] border border-slate-800 w-full max-w-4xl h-[85vh] rounded-2xl flex flex-col overflow-hidden shadow-2xl relative animate-fadeIn">
-            <div className="px-6 py-4 border-b border-slate-800/80 bg-slate-900/60 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <Award className="text-rose-400 shrink-0" size={20} />
-                <div>
-                  <h2 className="text-base font-bold text-white">LiveChat Radar - 라이브 쇼핑 종료 리포트</h2>
-                  <p className="text-[10px] text-slate-500">실시간 데이터와 OpenAI 기반 판매 성과 개선 보고서</p>
-                </div>
-              </div>
-              <button onClick={() => setShowReportModal(false)} className="p-1.5 bg-slate-800/80 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 rounded-lg transition-colors">
-                <X size={16} />
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#020617] border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+            <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-100">방송 종료 리포트</h2>
+              <button onClick={() => setShowReportModal(false)} className="text-slate-500 hover:text-slate-300">
+                <X size={18} />
               </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 select-text text-sm">
-              {/* G-3: 세션 데이터 시각 분석 (AI 마크다운과 별개로 항상 표시) */}
-              <PostLiveAnalysis
-                insights={postLiveInsights}
-                summary={viewerSummary}
-                productInterest={analysis?.productInterest ?? []}
-              />
-
-              <div className="border-t border-slate-800 pt-2 text-[10px] font-bold text-cyan-400 uppercase tracking-widest font-sans">
-                🤖 AI 종합 리포트
-              </div>
-
+            </header>
+            <div className="flex-1 overflow-y-auto p-4">
               {isGeneratingReport ? (
-                <div className="h-full flex flex-col items-center justify-center space-y-4 py-20">
-                  <RotateCw size={40} className="text-cyan-400 animate-spin" />
-                  <div className="text-center space-y-1.5">
-                    <p className="text-sm font-bold text-slate-200">OpenAI가 방송 성과를 심층 분석하는 중입니다...</p>
-                    <p className="text-xs text-slate-500">판매 신호, 미응답 질문, 가격 저항을 종합한 AI 피드백 문서를 제작하는 중입니다.</p>
-                  </div>
+                <div className="flex flex-col items-center justify-center py-16 gap-2 text-slate-500">
+                  <RotateCw size={22} className="animate-spin text-cyan-400" />
+                  <p className="text-[11px]">리포트를 생성하고 있습니다…</p>
                 </div>
               ) : report ? (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-slate-950 p-4 border border-slate-900 rounded-xl text-center">
-                      <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">추정 판매</p>
-                      <p className="text-2xl font-bold font-mono text-emerald-400">{report.summaryStats.estimatedSales}건</p>
-                    </div>
-                    <div className="bg-slate-950 p-4 border border-slate-900 rounded-xl text-center">
-                      <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">질문 응답률</p>
-                      <p className="text-2xl font-bold font-mono text-cyan-400">{report.summaryStats.answerRate}%</p>
-                    </div>
-                    <div className="bg-slate-950 p-4 border border-slate-900 rounded-xl text-center">
-                      <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">미응답 질문</p>
-                      <p className="text-2xl font-bold font-mono text-rose-400">{report.summaryStats.unansweredCount}건</p>
-                    </div>
-                    <div className="bg-slate-950 p-4 border border-slate-900 rounded-xl text-center">
-                      <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">관심 최상위 상품</p>
-                      <p className="text-xs font-bold text-indigo-300 mt-1.5 truncate">{report.summaryStats.topProduct}</p>
-                    </div>
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+                    {[
+                      ['총 댓글', report.summaryStats.totalMessages],
+                      ['피크 CPM', report.summaryStats.peakCpm],
+                      ['후원 신호', report.summaryStats.supportCount],
+                      ['리스크', report.summaryStats.riskCount],
+                      ['미응답', report.summaryStats.unansweredCount],
+                      ['응답률', `${report.summaryStats.answerRate}%`],
+                      ['최다 아젠다', report.summaryStats.topAgenda],
+                    ].map(([label, value]) => (
+                      <div key={String(label)} className="bg-slate-900/60 border border-slate-800 rounded-lg p-2">
+                        <div className="text-[9px] text-slate-500 uppercase tracking-wider">{label}</div>
+                        <div className="text-sm font-bold font-mono text-slate-200 truncate">{value}</div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="bg-slate-950/80 rounded-xl p-5 border border-slate-800 text-slate-200 font-sans leading-relaxed whitespace-pre-wrap select-text selection:bg-purple-500/40">
+                  <pre className="text-[11px] text-slate-300 whitespace-pre-wrap leading-relaxed font-sans">
                     {report.reportMarkdown}
-                  </div>
-                </div>
+                  </pre>
+                </>
               ) : (
-                <div className="text-center py-12 text-slate-400">리포트를 가져오는 중 약간의 이상 흐름이 있었습니다. 다시 시도하십시오.</div>
+                <p className="text-center text-slate-600 text-[11px] py-12">리포트를 불러오지 못했습니다.</p>
               )}
-            </div>
-
-            <div className="px-6 py-4 border-t border-slate-800/80 bg-slate-900/60 flex items-center justify-between shrink-0">
-              <span className="text-[10px] text-slate-500 font-sans">{report ? `출력시각: ${report.generatedAt}` : ''}</span>
-              <div className="flex items-center gap-2">
-                {report && (
-                  <button
-                    onClick={() => handleCopyToClipboard(report.reportMarkdown, 'report-copy-doc')}
-                    className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-all ${copiedId === 'report-copy-doc' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'}`}
-                  >
-                    {copiedId === 'report-copy-doc' ? (<><CheckCircle size={13} /> 복사 완료!</>) : (<><Copy size={13} /> 전체 마크다운 복사하기</>)}
-                  </button>
-                )}
-                <button onClick={() => setShowReportModal(false)} className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-lg transition-colors">
-                  창 닫기
-                </button>
-              </div>
             </div>
           </div>
         </div>
