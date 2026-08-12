@@ -13,9 +13,26 @@ import {
   STATIC_SHOP_REPORT_SYSTEM_PROMPT,
   shopAnalyzeJsonSchema,
   shopReportJsonSchema,
+  STATIC_TALK_ANALYZE_SYSTEM_PROMPT,
+  STATIC_TALK_REPORT_SYSTEM_PROMPT,
+  talkAnalyzeJsonSchema,
+  talkReportJsonSchema,
 } from './src/prompts.js';
 import { generateSimulatedShopAnalysis, generateSimulatedShopReport } from './src/lib/simulateShopAnalysis.js';
+import { generateSimulatedTalkAnalysis, generateSimulatedTalkReport } from './src/lib/simulateTalkAnalysis.js';
+import { runPrefilter, formatStatsForPrompt, type PrefilterStats } from './src/lib/prefilter.js';
+import { applyDerivedAxes } from './src/lib/normalizeTalk.js';
+import { getSessionStore, DEFAULT_RETENTION_DAYS } from './src/lib/sessionStore.js';
+import {
+  buildSessionRecord,
+  compareToPrevious,
+  buildAgendaTrends,
+  buildReturningStats,
+  buildCarryOver,
+} from './src/lib/crossSession.js';
+import { stratifiedSample, formatSampleForPrompt } from './src/lib/sample.js';
 import type { LiveProduct } from './src/types/liveShopping.js';
+import type { LiveIssue } from './src/types/liveTalk.js';
 
 // Load environment variables
 dotenv.config();
@@ -44,33 +61,53 @@ interface DemoSession {
 }
 const demoSessions = new Map<string, DemoSession>();
 
-// Predefined simulated stream messages for Demo Mode (Shopping Live Host / Tech Launch)
+// DEMO 모드용 가상 채팅 (정치·시사 라이브).
+//
+// ⚠️ 작성 원칙 (D-6 / D-7):
+//   - 실존 인물·정당·진영을 지칭하지 않는다. "위원장", "예산안"처럼 일반 명사만 쓴다.
+//   - 특정 진영에 유리하거나 불리한 서사를 담지 않는다. 동의/반대가 대칭으로 등장한다.
+//   - 리스크 축 샘플은 **형식**(단정 표현·미확인 전언·도배)만 보여주며 실제 혐오 표현은 넣지 않는다.
+//   데모는 제품 평가의 주 경로이므로, 여기 담긴 편향이 곧 제품의 첫인상이 된다.
 const SIMULATED_CHAT_RESOURCES = [
-  { author: "김민수", message: "안녕하세요! 오늘 방송 정말 기대되네요~!", isSponsor: true },
-  { author: "이지혜", message: "와 벌써 사람 많이 들어왔네요! 반갑습니다.", isSponsor: false },
-  { author: "박태형", message: "소리가 잘 안들려요.. 마이크 소리 좀 키워주세요!", isSponsor: false },
-  { author: "Sonia Yang", message: "이거 혹시 오늘 구매하면 언제 배송 시작되나요??", isSponsor: false },
-  { author: "정우진", message: "방송 화질 설정 1080p 지원하나요? 아주 선명해요!", isSponsor: false },
-  { author: "최유리", message: "구매 주소(링크) 올려주세요! 바로 사고 싶어요.", isSponsor: false },
-  { author: "한상현", message: "가격대비 성능비 괜찮아 보이네요. 디자인도 깔끔하고.", isSponsor: true },
-  { author: "미니미", message: "소리가 약간 울리는 것 같은데 저만 그런가요??", isSponsor: false },
-  { author: "강동우", message: "초록색 색상 재고 얼마 안 남았나요? 급합니다!", isSponsor: false },
-  { author: "윤서연", message: "지인 추천 받고 들어왔는데 호스트분 진행 엄청 잘하시네요 ㅋㅋ", isSponsor: false },
-  { author: "임재범", message: "방금 결제 완료했습니다! 배송 빠르게 부탁드려요!!!", isSponsor: true },
-  { author: "블루스카이", message: "이거 화이트 색상 실물 크기가 어느 정도 되나요?", isSponsor: false },
-  { author: "박지원", message: "채팅창 넘 빨라서 정신이 없네ㅋㅋ 화이팅입니다!", isSponsor: false },
-  { author: "정수진", message: "끊김이 좀 심해졌어요 확인부탁드려요 ㅠㅠ", isSponsor: false },
-  { author: "Harry Park", message: "쿠폰 적용이 왜 안 되는거죠? 해결 방법 아시는 분?", isSponsor: false },
-  { author: "송지효", message: "진짜 갖고 싶었는데 드디어 출시됐네... 무조건 삽니다.", isSponsor: false },
-  { author: "마카롱", message: "질문있어요! 무상 A/S 기간은 몇 년 보장되나요??", isSponsor: true },
-  { author: "김준호", message: "와 사은품 혜택 선착순인가요? 아직 유효한가요?", isSponsor: false },
-  { author: "미래지향", message: "화질이 멈춰있어요.. 버퍼링 걸린 듯", isSponsor: false },
-  { author: "달빛요정", message: "방송 보면서 결제 창 띄우고 있습니다! 할인코드 알려주세요!", isSponsor: false },
-  { author: "이도원", message: "제품 상세 설명이 필요합니다. 크기랑 규격이 궁금해요.", isSponsor: false },
-  { author: "서미경", message: "믿고 지릅니다!! 얼른 와라 배송아 ㅋㅋㅋ", isSponsor: false },
-  { author: "정상현", message: "저번 방송 보고 샀는데 대만족이에요. 다들 고민 말고 사삼", isSponsor: true },
-  { author: "쿠쿠다스", message: "댓글 소통 최고네요! 실시간 피드백 빠르십니다.", isSponsor: false },
-  { author: "차은우사랑", message: "사고 싶은데 가격이 조오금 부담스럽네요. 혹시 할부 혜택도 있나요?", isSponsor: false }
+  // 참여·후원 / 출석
+  { author: "김민수", message: "오늘도 출석합니다! 본방 사수", isSponsor: true },
+  { author: "이지혜", message: "퇴근하고 바로 들어왔습니다 반갑습니다", isSponsor: false },
+  { author: "정상현", message: "매일 챙겨보고 있습니다. 늘 감사합니다", isSponsor: true },
+  { author: "서미경", message: "슈퍼챗 보냅니다. 좋은 방송 부탁드려요", isSponsor: false },
+  { author: "쿠쿠다스", message: "구독하고 알림 설정했습니다", isSponsor: false },
+  { author: "달빛요정", message: "멤버십 가입했어요 앞으로도 응원합니다", isSponsor: true },
+
+  // 질문·요구
+  { author: "박태형", message: "예산안 처리 일정이 어떻게 되나요?", isSponsor: false },
+  { author: "최유리", message: "관련 자료 좀 화면에 띄워주세요", isSponsor: false },
+  { author: "마카롱", message: "그 근거 출처가 어디인가요? 원문 보고 싶습니다", isSponsor: true },
+  { author: "이도원", message: "처음 보는 사람도 알 수 있게 쉽게 설명해주세요", isSponsor: false },
+  { author: "블루스카이", message: "위원장 발언 부분 다시 들려주실 수 있나요?", isSponsor: false },
+  { author: "김준호", message: "지난주에 다루신 그 건은 그 뒤로 어떻게 됐나요?", isSponsor: false },
+  { author: "윤서연", message: "이 주제 다음 방송에서 자세히 다뤄주세요", isSponsor: false },
+  { author: "Harry Park", message: "우리가 할 수 있는 게 뭐가 있을까요?", isSponsor: false },
+
+  // 반응·의견 (동의/반대 대칭)
+  { author: "한상현", message: "말씀하신 부분 정확한 지적이라고 봅니다", isSponsor: true },
+  { author: "정우진", message: "저는 그 대목은 좀 다르게 봅니다", isSponsor: false },
+  { author: "송지효", message: "동의합니다. 정리가 깔끔하네요", isSponsor: false },
+  { author: "차은우사랑", message: "그 해석에는 동의하기 어렵습니다", isSponsor: false },
+  { author: "미니미", message: "진짜 맞는 얘기인가요? 확인이 필요해 보입니다", isSponsor: false },
+
+  // 정서
+  { author: "강동우", message: "이건 좀 화가 나네요 어이가 없습니다", isSponsor: false },
+  { author: "정수진", message: "앞으로 어떻게 될지 걱정이 큽니다", isSponsor: false },
+  { author: "박지원", message: "그래도 오늘 정리 들으니 좀 낫네요", isSponsor: false },
+  { author: "미래지향", message: "매번 똑같은 얘기라 좀 지치네요", isSponsor: false },
+
+  // 리스크 형식 샘플 (실제 혐오 표현은 넣지 않는다 — 형식만)
+  { author: "임재범", message: "카톡으로 받았는데 이거 사실인가요?", isSponsor: false },
+  { author: "익명의시민", message: "저건 명백한 범죄다 구속감이다", isSponsor: false },
+  { author: "새벽three", message: "지라시로 도는 내용인데 확인된 건가요", isSponsor: false },
+
+  // 방송 운영
+  { author: "Sonia Yang", message: "소리가 잘 안 들려요 마이크 확인 부탁드립니다", isSponsor: false },
+  { author: "블루문", message: "화면이 잠깐 멈췄다가 돌아왔습니다", isSponsor: false }
 ];
 
 // Initialize OpenAI SDK
@@ -95,8 +132,8 @@ app.get('/api/youtube/info', async (req, res): Promise<any> => {
       success: true,
       videoId: 'demo',
       activeLiveChatId: 'demo-chat-id',
-      title: '🔴 [실시간 쇼핑] LiveChat Radar AI 연동 혁신 신제품 론칭 라이브!',
-      channelName: 'LiveChat Radar Tech',
+      title: '🔴 [LIVE] 오늘의 시사 브리핑 — 예산안·청문회 쟁점 정리',
+      channelName: 'LiveChat Radar 시사',
       thumbnailUrl: 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=400&auto=format&fit=crop&q=80',
       isDemo: true,
       publishedAt: new Date().toISOString()
@@ -303,6 +340,9 @@ async function generateContentWithRetryAndFallback(params: {
         console.log(`[AI Listener] Attempting completion on ${model} (Retries left: ${retries})`);
         const completion = await ai!.chat.completions.create({
           model,
+          // 분류·심각도 판정은 창의성이 필요한 작업이 아니다. 기본값(1)로 두면 같은 입력에
+          // 다른 등급이 나온다 — 실제로 대상만 바꾼 대칭 fixture에서 심각도가 갈렸다(D-7 위반).
+          temperature: 0,
           messages: [
             { role: 'system', content: params.systemPrompt },
             { role: 'user', content: params.userPrompt },
@@ -529,6 +569,292 @@ ${serializedComments}`;
       report: fallback,
       errorInfo: `라이브 쇼핑 리포트 생성 중 지연이 발생하여 가상 리포트로 자동 복구되었습니다: ${err.message}`,
     });
+  }
+});
+
+// ── 정치·시사 라이브 (P-4) ───────────────────────────────────────────────────
+//
+// 쇼핑 엔드포인트와 결정적으로 다른 점: **AI에 댓글 원문 전량을 넘기지 않는다.**
+// L1(runPrefilter)이 전량을 비용 0으로 처리해 집계 통계 + 층화 표본을 만들고,
+// AI에는 그것만 넘긴다. 그래야 호출당 입력 토큰이 CPM(분당 댓글 수)과 무관하게 상수로 고정된다.
+// CPM 300짜리 방송에서 slice(-80) 방식은 40초 윈도우의 60%를 유실한다.
+
+/** 큐시트 컨텍스트 직렬화 — 등록 이슈가 없으면 AI가 issueId를 null로 두게 한다 */
+function serializeIssues(issues: LiveIssue[]): string {
+  if (issues.length === 0) {
+    return '(등록된 큐시트 없음 — issueId/figure는 모두 null로 두십시오.)';
+  }
+  return issues
+    .map((i) => {
+      const kw = i.keywords?.length ? ` | 키워드: ${i.keywords.join(', ')}` : '';
+      const fg = i.figures?.length ? ` | 인물: ${i.figures.join(', ')}` : '';
+      const act = i.isActive ? ' | [현재 진행중]' : '';
+      return `- id:${i.id} | ${i.title}${kw}${fg}${act}`;
+    })
+    .join('\n');
+}
+
+/**
+ * 정치·시사 분석 캐시 키.
+ *
+ * 메시지 ID 전량을 해시하면 고CPM에서 매 호출 집합이 달라져 히트율이 0이 된다.
+ * 대신 (방송 제목, 큐시트 구성, 10초 시간 버킷, L1 통계 시그니처)로 결정한다.
+ * L1 시그니처는 내용 구성이 같으면 같은 값이므로, 짧은 간격의 중복 분석을 실제로 차단한다.
+ */
+function buildTalkCacheKey(
+  streamTitle: string,
+  issues: LiveIssue[],
+  stats: PrefilterStats,
+): string {
+  const issueSig = issues.map((i) => `${i.id}:${i.isActive ? 1 : 0}`).join(',');
+  const bucket = Math.floor(Date.now() / 10_000); // 10초 버킷
+  return crypto
+    .createHash('sha1')
+    .update(`talk|${streamTitle}|${issueSig}|${bucket}|${stats.signature}`)
+    .digest('hex');
+}
+
+// API Route: 3-T. 정치·시사 실시간 분석 (6축 37태그 · 아젠다 · 리스크 레이더 · 미응답 요구)
+app.post('/api/analyze/talk', async (req, res): Promise<any> => {
+  const { messages, streamTitle, previousCpm } = req.body;
+  const issues: LiveIssue[] = Array.isArray(req.body?.issues) ? req.body.issues : [];
+
+  // [1] 입력 검증 — 댓글이 없으면 시뮬레이터의 빈 상태 응답 (UI 안전)
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return res.json({
+      success: true,
+      analysis: generateSimulatedTalkAnalysis([], issues),
+    });
+  }
+
+  // [2] L1 — 키 유무와 무관하게 항상 전량 처리한다. 비용이 0이고,
+  //     시뮬레이터 경로와 AI 경로가 같은 집계를 보게 해 결과 일관성이 유지된다.
+  const stats = runPrefilter(messages, {
+    previousCpm: typeof previousCpm === 'number' ? previousCpm : undefined,
+    issueKeywords: issues.flatMap((i) => i.keywords ?? []),
+    figures: issues.flatMap((i) => i.figures ?? []),
+  });
+
+  // [3] !ai 폴백 (로컬 시뮬레이터) — L1 결과를 재사용해 중복 계산을 피한다
+  if (!ai) {
+    console.log('No OPENAI_API_KEY detected. Using local politics simulator.');
+    return res.json({
+      success: true,
+      analysis: generateSimulatedTalkAnalysis(messages, issues, stats),
+      isSimulated: true,
+      l1: summarizeL1(stats),
+    });
+  }
+
+  // [4] 정상 경로 (OpenAI)
+  try {
+    const cacheKey = buildTalkCacheKey(streamTitle || '', issues, stats);
+    const cached = getCachedAnalysis(cacheKey);
+    if (cached) {
+      logCacheStats();
+      return res.json({
+        success: true,
+        analysis: { ...cached, analyzedAt: new Date().toLocaleTimeString() },
+        cached: true,
+        l1: summarizeL1(stats),
+      });
+    }
+
+    const sample = stratifiedSample(stats, { size: 80 });
+
+    // [A-1] system은 정적 프롬프트 그대로 (Prompt Caching prefix). user에는 호출별 데이터만.
+    const userPrompt = `현재 방송 제목: "${streamTitle || '정치·시사 라이브'}"
+
+[오늘의 큐시트]
+${serializeIssues(issues)}
+
+[채팅 집계 통계]
+${formatStatsForPrompt(stats)}
+
+[층화 표본 댓글 ${sample.items.length}건 — 원본 ${sample.representedMessages}건을 대표]
+${formatSampleForPrompt(sample)}`;
+
+    const response = await generateContentWithRetryAndFallback({
+      systemPrompt: STATIC_TALK_ANALYZE_SYSTEM_PROMPT,
+      userPrompt,
+      schemaName: 'live_talk_analysis',
+      jsonSchema: talkAnalyzeJsonSchema,
+    });
+
+    // axis는 스키마에 없다 — tag에서 파생해 주입한다 (normalizeTalk 주석 참조)
+    const parsed = applyDerivedAxes(cleanAndParseJSON(response.text?.trim() || '{}'));
+    parsed.analyzedAt = new Date().toLocaleTimeString();
+
+    setCachedAnalysis(cacheKey, parsed);
+    logCacheStats();
+
+    return res.json({ success: true, analysis: parsed, l1: summarizeL1(stats) });
+  } catch (err: any) {
+    console.error('OpenAI talk analysis internal failure:', err);
+    // Graceful recovery: 로컬 시뮬레이터로 즉시 복구하여 앱 흐름을 막지 않는다.
+    return res.json({
+      success: true,
+      analysis: generateSimulatedTalkAnalysis(messages, issues, stats),
+      l1: summarizeL1(stats),
+      errorInfo: `정치·시사 AI 분석 중 지연이 발생하여 가상 분석 시스템으로 즉시 자동 복구되었습니다: ${err.message}`,
+    });
+  }
+});
+
+/** 프론트가 타임라인·경고에 쓰는 L1 요약 (원문·후보 배열은 제외해 페이로드를 작게 유지) */
+function summarizeL1(stats: PrefilterStats) {
+  return {
+    total: stats.total,
+    unique: stats.unique,
+    dedupeRate: Number(stats.dedupeRate.toFixed(1)),
+    authorCount: stats.authorCount,
+    cpm: Math.round(stats.cpm),
+    spike: stats.spike,
+    riskCandidates: stats.riskCandidates.length,
+    requestCandidates: stats.requestCandidates.length,
+    brigading: stats.brigading.length,
+  };
+}
+
+// API Route: 4-T. 정치·시사 종료 리포트
+app.post('/api/report/talk', async (req, res): Promise<any> => {
+  const { messages, streamTitle, peakCpm } = req.body;
+  const issues: LiveIssue[] = Array.isArray(req.body?.issues) ? req.body.issues : [];
+
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ success: false, error: '분석에 필요한 댓글 목록이 비어 있습니다.' });
+  }
+
+  // 리포트도 L1을 거친다. 앞에서 150건을 자르는 방식(구 쇼핑 리포트)은 3시간 방송에서
+  // 도입부만 보게 되어 방송 전체를 대표하지 못한다.
+  const stats = runPrefilter(messages, {
+    issueKeywords: issues.flatMap((i) => i.keywords ?? []),
+    figures: issues.flatMap((i) => i.figures ?? []),
+  });
+
+  if (!ai) {
+    console.log('No OPENAI_API_KEY detected. Using local politics report simulator.');
+    return res.json({
+      success: true,
+      report: generateSimulatedTalkReport(messages, issues, peakCpm || 0),
+      isSimulated: true,
+    });
+  }
+
+  try {
+    // 종료 리포트는 방송 전체를 대표해야 하므로 표본을 넉넉히 잡는다.
+    const sample = stratifiedSample(stats, { size: 150 });
+
+    const userPrompt = `[방송 정보]
+- 방송 제목: "${streamTitle || '정치·시사 라이브'}"
+- 총 수집 댓글 수: ${messages.length}개
+- 최대 분당 댓글 수 (Peak CPM): ${peakCpm || 0} CPM
+
+[오늘의 큐시트]
+${serializeIssues(issues)}
+
+[방송 전체 집계]
+${formatStatsForPrompt(stats)}
+
+[층화 표본 ${sample.items.length}건 — 원본 ${sample.representedMessages}건을 대표]
+${formatSampleForPrompt(sample)}`;
+
+    const response = await generateContentWithRetryAndFallback({
+      systemPrompt: STATIC_TALK_REPORT_SYSTEM_PROMPT,
+      userPrompt,
+      schemaName: 'live_talk_report',
+      jsonSchema: talkReportJsonSchema,
+    });
+
+    const parsed = cleanAndParseJSON(response.text?.trim() || '{}');
+    parsed.generatedAt = new Date().toLocaleString();
+    return res.json({ success: true, report: parsed });
+  } catch (err: any) {
+    console.error('OpenAI talk report generation internal failure:', err);
+    return res.json({
+      success: true,
+      report: generateSimulatedTalkReport(messages, issues, peakCpm || 0),
+      errorInfo: `정치·시사 리포트 생성 중 지연이 발생하여 가상 리포트로 자동 복구되었습니다: ${err.message}`,
+    });
+  }
+});
+
+// ── 크로스세션 (P-11) ────────────────────────────────────────────────────────
+//
+// 매일 방송 + 고정 시청층이 자산이 되는 지점. 회차 요약을 저장하고 회차 비교·아젠다 추이·
+// 단골 누적·미해소 요구 이월을 계산한다.
+//
+// ⚠️ D-8: 저장되는 것은 집계치 + 참여자 **해시**뿐이다. 원문 닉네임·댓글은 저장하지 않는다.
+//   SUPABASE_URL 미설정 시 로컬 파일로 폴백하므로 설정 없이도 동작한다.
+
+// API Route: 5-T. 회차 저장 (방송 종료 시)
+app.post('/api/sessions', async (req, res): Promise<any> => {
+  const { id, title, startedAt, endedAt, analysis, report, timelineAvgHeat, peakCpm, authors } = req.body ?? {};
+
+  if (!id || typeof id !== 'string') {
+    return res.status(400).json({ success: false, error: '회차 id가 필요합니다.' });
+  }
+
+  try {
+    const record = buildSessionRecord({
+      id,
+      title: title || '제목 없는 방송',
+      startedAt: startedAt || new Date().toISOString(),
+      endedAt,
+      analysis: analysis ?? null,
+      report: report ?? null,
+      timelineAvgHeat: typeof timelineAvgHeat === 'number' ? timelineAvgHeat : 0,
+      peakCpm: typeof peakCpm === 'number' ? peakCpm : 0,
+      authors: Array.isArray(authors) ? authors : [],
+    });
+
+    const store = getSessionStore();
+    await store.save(record);
+    const pruned = await store.prune(DEFAULT_RETENTION_DAYS);
+    if (pruned > 0) console.log(`[SessionStore] 보존기간(${DEFAULT_RETENTION_DAYS}일) 초과 ${pruned}건 정리`);
+
+    return res.json({
+      success: true,
+      saved: { id: record.id, participantCount: record.participantHashes.length },
+      store: store.kind,
+      pruned,
+    });
+  } catch (err: any) {
+    console.error('Session save failure:', err);
+    // 크로스세션은 부가 기능이다 — 실패해도 방송 진행을 막지 않는다
+    return res.status(500).json({ success: false, error: `회차 저장에 실패했습니다: ${err.message}` });
+  }
+});
+
+// API Route: 6-T. 회차 히스토리 + 파생 (회차 비교 · 아젠다 추이 · 단골 · 이월)
+app.get('/api/sessions/history', async (req, res): Promise<any> => {
+  const limit = Math.min(60, Math.max(1, Number(req.query.limit) || 30));
+  const currentId = typeof req.query.currentId === 'string' ? req.query.currentId : null;
+
+  try {
+    const store = getSessionStore();
+    const history = await store.list(limit);
+
+    const current = currentId ? history.find((r) => r.id === currentId) ?? null : history[0] ?? null;
+
+    return res.json({
+      success: true,
+      store: store.kind,
+      sessions: history.map((r) => ({
+        // 목록에는 해시 배열을 실어보내지 않는다 — 페이로드도 줄고 노출면도 줄인다
+        ...r,
+        participantHashes: undefined,
+        participantCount: r.participantHashes.length,
+      })),
+      comparison: current ? compareToPrevious(current, history) : null,
+      agendaTrends: buildAgendaTrends(history),
+      returning: buildReturningStats(history),
+      carryOver: buildCarryOver(history),
+      retentionDays: DEFAULT_RETENTION_DAYS,
+    });
+  } catch (err: any) {
+    console.error('Session history failure:', err);
+    return res.status(500).json({ success: false, error: `회차 기록을 불러오지 못했습니다: ${err.message}` });
   }
 });
 
