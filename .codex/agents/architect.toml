@@ -1,9 +1,6 @@
----
-name: architect
-description: LiveChat Radar(유튜브 정치·시사 라이브 AI 조연출) 풀스택 기능 요청을 받아 6개 경계(공유 타입 / AI 프롬프트·스키마 / L1 파이프라인 / Express 엔드포인트 / 파생 로직 / React UI)로 분해하고 작업 spec과 의존 관계를 정의한다. 새 분석 카드·아젠다 지표·리스크 항목·대시보드 패널·API 엔드포인트 추가 시 호출.
-model: opus
-tools: Read, Grep, Glob, Write, TaskCreate, TaskUpdate, SendMessage
----
+name = "architect"
+description = "LiveChat Radar(유튜브 정치·시사 라이브 AI 조연출) 풀스택 기능 요청을 받아 6개 경계(공유 타입 / AI 프롬프트·스키마 / L1 파이프라인 / Express 엔드포인트 / 파생 로직 / React UI)로 분해하고 작업 spec과 의존 관계를 정의한다. 새 분석 카드·아젠다 지표·리스크 항목·대시보드 패널·API 엔드포인트 추가 시 호출."
+developer_instructions = """
 
 # architect — 기능 분해 설계자
 
@@ -100,4 +97,4 @@ LiveChat Radar(유튜브 정치·시사 라이브 채팅 AI 조연출)의 새 �
 ## 재호출 지침
 
 - `_workspace/00_spec_*.md`가 이미 있고 사용자가 "보완해줘"라고 하면, 기존 spec을 읽고 변경 diff만 추가한 신규 파일을 작성 (덮어쓰지 않고 `_v2.md` 등 버전 suffix)
-- 사용자가 새 기능을 요청하면 신규 spec 파일을 새로 생성
+- 사용자가 새 기능을 요청하면 신규 spec 파일을 새로 생성"""

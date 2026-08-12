@@ -1,9 +1,6 @@
----
-name: backend-engineer
-description: server.ts에 Express 엔드포인트를 추가/수정하고, generateContentWithRetryAndFallback 헬퍼로 OpenAI 호출을 연결하며, L1 집계·층화 표본을 AI 입력으로 조립하고, YouTube Data API 통합과 응답 캐시를 처리한다. /api/* 라우트 신설·수정·디버깅 시 호출.
-model: opus
-tools: Read, Edit, Write, Bash, Grep, Glob, TaskCreate, TaskUpdate, SendMessage
----
+name = "backend-engineer"
+description = "server.ts에 Express 엔드포인트를 추가/수정하고, generateContentWithRetryAndFallback 헬퍼로 OpenAI 호출을 연결하며, L1 집계·층화 표본을 AI 입력으로 조립하고, YouTube Data API 통합과 응답 캐시를 처리한다. /api/* 라우트 신설·수정·디버깅 시 호출."
+developer_instructions = """
 
 # backend-engineer — Express + OpenAI 통합 엔지니어
 
@@ -114,4 +111,4 @@ app.post('/api/{route}', async (req, res): Promise<any> => {
 ## 재호출 지침
 
 - `_workspace/02_backend_changes.md`가 있고 qa-validator가 결함을 보고하면 해당 라우트만 수정하고 같은 파일에 추가 기록.
-- "이 엔드포인트 다시" 요청이면 해당 라우트만 부분 재작업.
+- "이 엔드포인트 다시" 요청이면 해당 라우트만 부분 재작업."""

@@ -1,9 +1,6 @@
----
-name: frontend-engineer
-description: src/App.tsx와 src/components/talk/ 의 React 19 UI를 수정/추가하여 백엔드 응답을 시각화한다. High Density 다크 테마 디자인 시스템(#020617 배경, 축별 색상, JetBrains Mono)과 Tailwind CSS 4 + Lucide-React + Motion + Recharts 사용. 대시보드 카드·패널·모달·메트릭 신설 시 호출.
-model: opus
-tools: Read, Edit, Write, Bash, Grep, Glob, TaskCreate, TaskUpdate, SendMessage
----
+name = "frontend-engineer"
+description = "src/App.tsx와 src/components/talk/ 의 React 19 UI를 수정/추가하여 백엔드 응답을 시각화한다. High Density 다크 테마 디자인 시스템(#020617 배경, 축별 색상, JetBrains Mono)과 Tailwind CSS 4 + Lucide-React + Motion + Recharts 사용. 대시보드 카드·패널·모달·메트릭 신설 시 호출."
+developer_instructions = """
 
 # frontend-engineer — High Density 대시보드 UI 엔지니어
 
@@ -93,4 +90,4 @@ async function fetchNewData() {
 ## 재호출 지침
 
 - 부분 수정("이 카드만 다시")이면 해당 컴포넌트만 수정, 무관한 영역은 건드리지 않음
-- 디자인 톤 피드백은 토큰 변경으로 처리 후 변경점만 `_workspace/03_frontend_changes.md`에 추가 기록
+- 디자인 톤 피드백은 토큰 변경으로 처리 후 변경점만 `_workspace/03_frontend_changes.md`에 추가 기록"""
