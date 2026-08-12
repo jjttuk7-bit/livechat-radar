@@ -47,10 +47,10 @@ export const IssueRegisterModal: React.FC<IssueRegisterModalProps> = ({ issues, 
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#020617] border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+      <div className="bg-[#08090a] border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
         <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-bold text-slate-100 font-sans">오늘의 큐시트</h2>
+            <h2 className="text-sm font-semibold text-slate-100 font-sans">오늘의 큐시트</h2>
             <p className="text-[10px] text-slate-500 font-sans mt-0.5">
               등록한 키워드·인물로 채팅의 아젠다를 매칭합니다.
             </p>
@@ -137,7 +137,7 @@ export const IssueRegisterModal: React.FC<IssueRegisterModalProps> = ({ issues, 
           </button>
           <button
             onClick={handleSave}
-            className="px-3 py-1.5 rounded-lg bg-cyan-500/15 border border-cyan-500/50 text-[11px] text-cyan-300 hover:bg-cyan-500/25 transition-colors font-sans font-bold"
+            className="px-3 py-1.5 rounded-lg bg-cyan-500/15 border border-cyan-500/50 text-[11px] text-cyan-300 hover:bg-cyan-500/25 transition-colors font-sans font-semibold"
           >
             저장
           </button>

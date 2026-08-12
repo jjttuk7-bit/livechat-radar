@@ -32,7 +32,7 @@ export const ParticipationPanel: React.FC<ParticipationPanelProps> = ({
     <section className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden min-w-0">
       <header className="px-3 py-2.5 border-b border-slate-800 flex items-center gap-1.5">
         <Filter size={15} className="text-violet-400 shrink-0" />
-        <h2 className="text-[11px] font-bold text-slate-200 font-sans">참여 퍼널</h2>
+        <h2 className="text-[11px] font-semibold text-slate-200 font-sans">참여 퍼널</h2>
         <span className="ml-auto text-[10px] font-mono text-violet-300">참여율 {funnel.supportRate}%</span>
       </header>
 
@@ -68,7 +68,7 @@ export const ParticipationPanel: React.FC<ParticipationPanelProps> = ({
         >
           <div className="flex items-center gap-1.5">
             <Megaphone size={13} className={appeal.open ? 'text-emerald-400' : 'text-slate-600'} />
-            <span className={`text-[10px] font-bold font-sans ${appeal.open ? 'text-emerald-300' : 'text-slate-500'}`}>
+            <span className={`text-[10px] font-semibold font-sans ${appeal.open ? 'text-emerald-300' : 'text-slate-500'}`}>
               {appeal.open ? '지금이 안내 적기입니다' : '안내 대기'}
             </span>
             <span className="ml-auto text-[10px] font-mono text-slate-500">{appeal.score}</span>

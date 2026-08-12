@@ -504,16 +504,18 @@ export default function App() {
   const appeal = useMemo(() => detectAppealWindow(analysis, timeline), [analysis, timeline]);
 
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-200 font-sans">
+    <div className="min-h-screen bg-[#08090a] text-slate-200 font-sans">
       {/* ── 헤더 ── */}
       <header className="border-b border-slate-800 bg-slate-950/60 sticky top-0 z-30 backdrop-blur">
         <div className="px-4 py-2.5 flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2 shrink-0">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-indigo-600 flex items-center justify-center">
-              <Activity size={16} className="text-white" />
+            {/* Linear 규칙: UI 컴포넌트에 장식용 그라디언트를 쓰지 않는다.
+                평면 표면 + hairline 보더 + 단색 마크로 대체. */}
+            <div className="w-7 h-7 rounded-lg bg-slate-850 border border-slate-800 flex items-center justify-center">
+              <Activity size={15} className="text-lime-400" />
             </div>
             <div className="leading-tight">
-              <h1 className="text-[13px] font-extrabold text-slate-100">LiveChat Radar</h1>
+              <h1 className="text-[13px] font-semibold text-slate-100">LiveChat Radar</h1>
               <p className="text-[9px] text-slate-500">정치·시사 라이브 AI 진행 조연출</p>
             </div>
           </div>
@@ -529,10 +531,16 @@ export default function App() {
                 className="w-full bg-slate-900/70 border border-slate-800 rounded-lg pl-8 pr-2.5 py-1.5 text-[11px] focus:outline-none focus:border-cyan-500/50 font-sans"
               />
             </div>
+            {/* 주 액션 (Acid Lime) — Linear 규칙상 화면당 하나뿐이다.
+                연결 전에는 "연결"이, 연결 후에는 "분석"이 주 액션이 된다. */}
             <button
               onClick={() => handleConnectStream()}
               disabled={isLoadingInfo}
-              className="px-2.5 py-1.5 rounded-lg bg-cyan-500/15 border border-cyan-500/40 text-[11px] text-cyan-300 hover:bg-cyan-500/25 disabled:opacity-50 flex items-center gap-1 shrink-0"
+              className={`px-2.5 py-1.5 rounded-lg text-[11px] disabled:opacity-50 flex items-center gap-1 shrink-0 font-medium ${
+                isPolling
+                  ? 'border border-slate-800 text-slate-400 hover:text-slate-200'
+                  : 'bg-lime-400 text-slate-950 hover:bg-lime-300'
+              }`}
             >
               {isLoadingInfo ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <Video className="w-3.5 h-3.5" />}
               연결
@@ -557,10 +565,15 @@ export default function App() {
                 </button>
               )
             )}
+            {/* 연결된 뒤에는 분석이 주 액션이 된다 */}
             <button
               onClick={runAIAnalysis}
               disabled={isAnalyzing || messages.length === 0}
-              className="px-2.5 py-1.5 rounded-lg border border-indigo-500/40 text-[11px] text-indigo-300 hover:bg-indigo-500/10 disabled:opacity-40 flex items-center gap-1"
+              className={`px-2.5 py-1.5 rounded-lg text-[11px] disabled:opacity-40 flex items-center gap-1 font-medium ${
+                isPolling
+                  ? 'bg-lime-400 text-slate-950 hover:bg-lime-300'
+                  : 'border border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
             >
               {isAnalyzing ? <RotateCw size={12} className="animate-spin" /> : <Bot size={12} />} 분석
             </button>
@@ -630,7 +643,7 @@ export default function App() {
             {/* 진행 조언 */}
             {analysis?.hostAdvice && (
               <section className="bg-slate-900/60 border border-cyan-500/20 rounded-xl p-3">
-                <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">진행 조언</h2>
+                <h2 className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">진행 조언</h2>
                 <p className="text-[12px] text-cyan-200 leading-snug">{analysis.hostAdvice}</p>
                 {analysis.recentSummary && (
                   <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">{analysis.recentSummary}</p>
@@ -670,7 +683,7 @@ export default function App() {
             <section className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
               <header className="px-3 py-2.5 border-b border-slate-800 flex items-center gap-1.5">
                 <MessageSquare size={15} className="text-slate-400 shrink-0" />
-                <h2 className="text-[11px] font-bold text-slate-200">라이브 피드</h2>
+                <h2 className="text-[11px] font-semibold text-slate-200">라이브 피드</h2>
                 <span className="ml-auto text-[10px] font-mono text-slate-500">
                   {messages.length > FEED_RENDER_CAP ? `최근 ${FEED_RENDER_CAP} / ${messages.length}` : messages.length}
                 </span>
@@ -716,9 +729,9 @@ export default function App() {
       {/* 리포트 모달 */}
       {showReportModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#020617] border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+          <div className="bg-[#08090a] border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
             <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-100">방송 종료 리포트</h2>
+              <h2 className="text-sm font-semibold text-slate-100">방송 종료 리포트</h2>
               <button onClick={() => setShowReportModal(false)} className="text-slate-500 hover:text-slate-300">
                 <X size={18} />
               </button>
@@ -743,7 +756,7 @@ export default function App() {
                     ].map(([label, value]) => (
                       <div key={String(label)} className="bg-slate-900/60 border border-slate-800 rounded-lg p-2">
                         <div className="text-[9px] text-slate-500 uppercase tracking-wider">{label}</div>
-                        <div className="text-sm font-bold font-mono text-slate-200 truncate">{value}</div>
+                        <div className="text-sm font-semibold font-mono text-slate-200 truncate">{value}</div>
                       </div>
                     ))}
                   </div>

@@ -14,7 +14,7 @@
 - AI: OpenAI `chat.completions` + Structured Outputs (`json_schema` strict), `gpt-4o-mini` 우선 / `gpt-4o` 폴백
 - **프롬프트·스키마 위치: `src/prompts.ts`** (server.ts 아님 — `evals/runner.ts`와 공유하는 단일 출처)
 - **타입 계약: `src/types/liveTalk.ts`** (P-1 이전 현행: `src/types/liveShopping.ts`)
-- Frontend: React 19 + Tailwind CSS 4 + Lucide-React + Motion + Recharts, High Density 다크(`#020617`)
+- Frontend: React 19 + Tailwind CSS 4 + Lucide-React + Motion + Recharts. **디자인 시스템은 Linear("midnight precision instrument") — 토큰 단일 출처는 `src/index.css`의 `@theme`, 근거·이탈 기록은 리포 루트 `DESIGN.md`.** 캔버스 `#08090a`, 그림자 금지(hairline 보더), 굵기 700+ 금지
 - Backend: Express + `tsx`, 모노리식 `server.ts`
 - 외부 API: YouTube Data API v3
 
@@ -75,4 +75,6 @@
 | 2026-08-12 | P-11 크로스세션 (Supabase + 파일 폴백) | src/types/liveTalk.ts(SessionRecord 등), src/lib/sessionStore.ts·crossSession.ts(+test), src/components/talk/SessionHistoryPanel.tsx, server.ts(`/api/sessions`·`/api/sessions/history`), supabase/schema.sql, .env.example, .gitignore | 매일 방송·고정 시청층이 처음으로 자산이 되는 지점. 회차 비교(델타 6종)·아젠다 수명(방향·연속 회차)·단골 누적(재방문율)·미해소 요구 이월. **SDK 의존 없이 PostgREST를 fetch로** 호출하고, 키 미설정 시 `.data/sessions.json`으로 자동 폴백(OpenAI 키 없을 때 시뮬레이터로 폴백하는 기존 원칙과 동일) |
 | 2026-08-12 | D-8 저장 설계 | src/lib/sessionStore.ts, supabase/schema.sql | 닉네임은 **sha256(salt:author) 32자 해시만** 저장. 원문 닉네임·댓글 원문 컬럼이 스키마에 존재하지 않음. `assertNoRawAuthors()`로 저장 직전 차단, 보존기간 90일 초과분은 쓰기 시점 정리. 히스토리 응답에서 해시 배열 자체를 제외(개수만 반환). 해싱은 서버에서만 — 클라이언트가 하면 salt가 브라우저에 노출된다 |
 | 2026-08-12 | 테스트가 실제 저장소 오염 fix | src/lib/sessionStore.ts(FileStore dir 주입), crossSession.test.ts | `npm test`가 앱의 `.data/sessions.json`에 테스트 레코드를 써서 실제 회차 기록을 오염시켰다. `FileStore(dir)`로 경로 주입 가능하게 하고 테스트는 os.tmpdir 격리 + 종료 시 정리 |
+| 2026-08-13 | 🎨 Linear 디자인 시스템 적용 | DESIGN.md (신규), src/index.css(@theme), index.html, src/App.tsx, src/components/talk/*, MetricCard.tsx, .claude/agents·skills + 미러, CLAUDE.md·README.md·AGENTS.md | styles.refero.design 후보 중 **Linear("midnight precision instrument")** 채택. Factory("terminal war room")는 분위기가 더 맞았지만 "추가 액센트 금지" 규칙이 6축 의미 색상을 파괴해 탈락. Tailwind 4 `@theme`로 표준 색 이름의 값만 재정의 → 컴포넌트 무수정으로 전체 전환. 캔버스 #020617→#08090a, 6축을 Linear 팔레트에 매핑, 주 액션 Acid Lime 단일화(연결↔분석 상태 전환), 굵기 700+ 제거(font-bold 36곳→semibold), 그라디언트·글로우 폐기, Recharts 색도 토큰화. 옛 팔레트를 가르치던 에이전트·스킬·문서 6곳 동기화 |
+| 2026-08-13 | CSS 주석이 `@theme`를 삼킨 버그 | src/index.css | 주석에 쓴 `slate-*/cyan-*`의 `*/`가 주석을 조기 종료시켜 **뒤따르는 `@theme` 블록 전체가 조용히 사라짐**. 빌드는 성공하고 색만 기본값으로 남아 발견이 어려웠다(주석 짝 31 vs 32로 특정). DESIGN.md에 재발 방지 메모 + `grep -c "0f1011" dist/assets/*.css` 검증법 기록 |
 | 2026-08-12 | 브라우저 검증 (P-11) | — | 2회차 저장 후 UI 확인: 델타(총댓글 +500·CPM +50·온도 +14%·후원 +5·응답률 +13%·리스크 −2), 재방문 2명(67%), 아젠다 "예산안 처리" 55→82 상승·2회 연속, 단골 누적 재방문율 50%, 이월 1건. D-8 확인: 응답에 해시 배열 미포함·원문 닉네임 노출 0 |

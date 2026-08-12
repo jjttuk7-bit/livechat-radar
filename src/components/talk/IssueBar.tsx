@@ -22,7 +22,7 @@ export const IssueBar: React.FC<IssueBarProps> = ({ issues, onOpenModal, onSetAc
     <div className="bg-slate-900/60 border border-slate-800 rounded-xl px-3 py-2 flex items-center gap-2 overflow-x-auto min-w-0">
       <div className="flex items-center gap-1.5 shrink-0">
         <ListChecks size={14} className="text-cyan-400" />
-        <span className="text-[10px] font-bold text-slate-400 font-sans">큐시트</span>
+        <span className="text-[10px] font-semibold text-slate-400 font-sans">큐시트</span>
       </div>
 
       {issues.length === 0 ? (

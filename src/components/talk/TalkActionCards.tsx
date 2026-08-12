@@ -24,7 +24,7 @@ export const TalkActionCards: React.FC<TalkActionCardsProps> = ({ cards, onCopy,
     <section className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden min-w-0">
       <header className="px-3 py-2.5 border-b border-slate-800 flex items-center gap-1.5">
         <Zap size={15} className="text-indigo-400 shrink-0" />
-        <h2 className="text-[11px] font-bold text-slate-200 font-sans">지금 할 것</h2>
+        <h2 className="text-[11px] font-semibold text-slate-200 font-sans">지금 할 것</h2>
         <span className="ml-auto text-[10px] font-mono text-slate-500">{cards.length}</span>
       </header>
 
@@ -37,10 +37,10 @@ export const TalkActionCards: React.FC<TalkActionCardsProps> = ({ cards, onCopy,
           cards.map((c) => (
             <article key={c.id} className="p-3 space-y-2">
               <div className="flex items-center gap-1.5">
-                <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold font-sans ${URGENCY_CHIP[c.priority]}`}>
+                <span className={`px-1.5 py-0.5 rounded border text-[9px] font-semibold font-sans ${URGENCY_CHIP[c.priority]}`}>
                   {c.priority === 'high' ? '긴급' : c.priority === 'medium' ? '권장' : '참고'}
                 </span>
-                <h3 className="text-[11px] font-bold text-slate-200 font-sans truncate">{c.title}</h3>
+                <h3 className="text-[11px] font-semibold text-slate-200 font-sans truncate">{c.title}</h3>
               </div>
 
               <p className="text-[10px] text-slate-500 font-sans leading-snug">{c.reason}</p>

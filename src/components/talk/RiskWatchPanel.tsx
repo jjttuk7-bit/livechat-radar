@@ -32,7 +32,7 @@ export const RiskWatchPanel: React.FC<RiskWatchPanelProps> = ({ alerts, resolved
       <header className="px-3 py-2.5 border-b border-slate-800 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
           <ShieldAlert size={15} className="text-rose-400 shrink-0" />
-          <h2 className="text-[11px] font-bold text-slate-200 font-sans truncate">리스크 워치</h2>
+          <h2 className="text-[11px] font-semibold text-slate-200 font-sans truncate">리스크 워치</h2>
         </div>
         <span className="text-[10px] font-mono text-rose-300 shrink-0">{visible.length}건</span>
       </header>
@@ -46,10 +46,10 @@ export const RiskWatchPanel: React.FC<RiskWatchPanelProps> = ({ alerts, resolved
           visible.map((a) => (
             <article key={a.id} className="p-2.5 space-y-1.5">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold font-sans ${SEVERITY_CHIP[a.severity]}`}>
+                <span className={`px-1.5 py-0.5 rounded border text-[9px] font-semibold font-sans ${SEVERITY_CHIP[a.severity]}`}>
                   {SEVERITY_LABEL[a.severity]}
                 </span>
-                <span className="text-[10px] font-bold text-rose-300 font-sans">{TAG_LABEL[a.tag]}</span>
+                <span className="text-[10px] font-semibold text-rose-300 font-sans">{TAG_LABEL[a.tag]}</span>
                 {a.spreadCount > 1 && (
                   <span className="text-[9px] font-mono text-slate-500">확산 {a.spreadCount}건</span>
                 )}
@@ -99,7 +99,7 @@ export const RiskBanner: React.FC<RiskBannerProps> = ({ alerts, threshold = 3 })
     <div className="bg-rose-500/10 border border-rose-500/40 rounded-xl px-3 py-2 flex items-center gap-2">
       <AlertTriangle size={15} className="text-rose-400 shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-bold text-rose-300 font-sans">
+        <p className="text-[11px] font-semibold text-rose-300 font-sans">
           댓글창 확인이 필요합니다 — 위험 신호 {alerts.length}건
           {high > 0 && ` (심각도 높음 ${high}건)`}
         </p>

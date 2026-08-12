@@ -70,7 +70,7 @@ export const SessionHistoryPanel: React.FC<SessionHistoryPanelProps> = ({
     <section className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden min-w-0">
       <header className="px-3 py-2.5 border-b border-slate-800 flex items-center gap-1.5">
         <History size={15} className="text-indigo-400 shrink-0" />
-        <h2 className="text-[11px] font-bold text-slate-200 font-sans">회차 비교</h2>
+        <h2 className="text-[11px] font-semibold text-slate-200 font-sans">회차 비교</h2>
         {store && (
           <span className="ml-auto text-[9px] font-mono text-slate-600" title={store === 'file' ? 'Supabase 미설정 — 로컬 파일에 저장 중' : 'Supabase에 저장 중'}>
             {store === 'file' ? '로컬 저장' : 'Supabase'}
@@ -89,7 +89,7 @@ export const SessionHistoryPanel: React.FC<SessionHistoryPanelProps> = ({
             {/* 직전 회차 대비 */}
             {comparison?.previous && comparison.deltas && (
               <div className="space-y-1.5">
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider font-sans">
+                <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider font-sans">
                   직전 회차 대비 ({new Date(comparison.previous.startedAt).toLocaleDateString('ko-KR')})
                 </p>
                 <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
@@ -117,7 +117,7 @@ export const SessionHistoryPanel: React.FC<SessionHistoryPanelProps> = ({
             {/* 아젠다 추이 */}
             {agendaTrends.length > 0 && (
               <div className="space-y-1 pt-2 border-t border-slate-800">
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider font-sans">
+                <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider font-sans">
                   아젠다 수명
                 </p>
                 <ul className="space-y-0.5">
@@ -139,7 +139,7 @@ export const SessionHistoryPanel: React.FC<SessionHistoryPanelProps> = ({
             {/* 단골 누적 */}
             {returning && returning.sessions > 0 && (
               <div className="pt-2 border-t border-slate-800">
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider font-sans mb-1">
+                <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider font-sans mb-1">
                   단골 누적 (최근 {returning.sessions}회차)
                 </p>
                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-sans">
@@ -154,7 +154,7 @@ export const SessionHistoryPanel: React.FC<SessionHistoryPanelProps> = ({
             {/* 이월 요구 */}
             {carryOver.length > 0 && (
               <div className="pt-2 border-t border-slate-800">
-                <p className="flex items-center gap-1 text-[9px] font-bold text-amber-300 uppercase tracking-wider font-sans mb-1">
+                <p className="flex items-center gap-1 text-[9px] font-semibold text-amber-300 uppercase tracking-wider font-sans mb-1">
                   <Inbox size={10} /> 지난 방송 미해소 요구 {carryOver.length}건
                 </p>
                 <ul className="space-y-0.5">

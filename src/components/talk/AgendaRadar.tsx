@@ -21,7 +21,7 @@ export const AgendaRadar: React.FC<AgendaRadarProps> = ({ items }) => {
     <section className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden min-w-0">
       <header className="px-3 py-2.5 border-b border-slate-800 flex items-center gap-1.5">
         <Radar size={15} className="text-cyan-400 shrink-0" />
-        <h2 className="text-[11px] font-bold text-slate-200 font-sans">아젠다 레이더</h2>
+        <h2 className="text-[11px] font-semibold text-slate-200 font-sans">아젠다 레이더</h2>
       </header>
 
       <div className="p-3 space-y-2.5">
@@ -35,7 +35,7 @@ export const AgendaRadar: React.FC<AgendaRadarProps> = ({ items }) => {
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] text-slate-200 font-sans truncate flex-1 min-w-0">{a.title}</span>
                 {a.isRising && (
-                  <span className="flex items-center gap-0.5 text-[9px] text-rose-300 font-bold shrink-0">
+                  <span className="flex items-center gap-0.5 text-[9px] text-rose-300 font-semibold shrink-0">
                     <TrendingUp size={10} /> 급상승
                   </span>
                 )}

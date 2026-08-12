@@ -24,7 +24,7 @@ export const UnansweredQueue: React.FC<UnansweredQueueProps> = ({ items, resolve
     <section className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden min-w-0">
       <header className="px-3 py-2.5 border-b border-slate-800 flex items-center gap-1.5">
         <HelpCircle size={15} className="text-emerald-400 shrink-0" />
-        <h2 className="text-[11px] font-bold text-slate-200 font-sans">미응답 요구</h2>
+        <h2 className="text-[11px] font-semibold text-slate-200 font-sans">미응답 요구</h2>
         <span
           className={`ml-auto text-[10px] font-mono ${visible.length === 0 ? 'text-emerald-400' : 'text-amber-300'}`}
         >
@@ -41,7 +41,7 @@ export const UnansweredQueue: React.FC<UnansweredQueueProps> = ({ items, resolve
           visible.map((q) => (
             <article key={q.id} className="p-2.5 space-y-1.5">
               <div className="flex items-center gap-1.5">
-                <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold font-sans ${URGENCY_CHIP[q.urgency]}`}>
+                <span className={`px-1.5 py-0.5 rounded border text-[9px] font-semibold font-sans ${URGENCY_CHIP[q.urgency]}`}>
                   {TAG_LABEL[q.tag]}
                 </span>
                 <button

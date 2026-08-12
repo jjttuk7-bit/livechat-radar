@@ -52,5 +52,5 @@ npm run start
 ---
 
 ## 🎨 디자인 철학 (Design Aesthetics)
-- **High Density Theme**: 깊이 있는 우주적 감성의 짙은 백그라운드 `#020617`와 얇고 균일한 사이안 글로잉 보더라인 디자인을 채용하여 전업 호스트 시야 방해를 최소화하는 동시에 기동성을 극대화 하였습니다.
+- **High Density Theme**: Linear 디자인 시스템("midnight precision instrument"). Void `#08090a` 캔버스 + hairline 보더(그림자 없음) + 6축 의미 색상. 상세는 `DESIGN.md`라인 디자인을 채용하여 전업 호스트 시야 방해를 최소화하는 동시에 기동성을 극대화 하였습니다.
 - **Architectural Honesty**: 불필요한 테라바이트 로그 및 테크 데코레이션을 지양하고 실제 스트리머가 시각 점유율 100% 상황에서 활용할 수 있도록 직관성을 최우선시하여 기획되었습니다.

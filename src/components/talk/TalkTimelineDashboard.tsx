@@ -20,14 +20,14 @@ interface TalkTimelineDashboardProps {
   points: TalkTimelinePoint[];
 }
 
-const AXIS_STYLE = { fontSize: 9, fill: '#475569' };
+const AXIS_STYLE = { fontSize: 9, fill: '#62666d' };
 
 const TOOLTIP_STYLE = {
-  backgroundColor: '#020617',
-  border: '1px solid #1e293b',
+  backgroundColor: '#08090a',
+  border: '1px solid #23252a',
   borderRadius: 8,
   fontSize: 11,
-  color: '#e2e8f0',
+  color: '#e5e5e6',
 } as const;
 
 function fmtTime(t: number): string {
@@ -52,28 +52,28 @@ export const TalkTimelineDashboard: React.FC<TalkTimelineDashboardProps> = ({ po
     <section className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden min-w-0">
       <header className="px-3 py-2.5 border-b border-slate-800 flex items-center gap-1.5">
         <TrendingUp size={15} className="text-cyan-400 shrink-0" />
-        <h2 className="text-[11px] font-bold text-slate-200 font-sans">시간축 추이</h2>
+        <h2 className="text-[11px] font-semibold text-slate-200 font-sans">시간축 추이</h2>
         <span className="ml-auto text-[10px] font-mono text-slate-500">{points.length} 포인트</span>
       </header>
 
       <div className="p-3 grid grid-cols-1 lg:grid-cols-3 gap-3">
         {/* 결집 온도 */}
         <div className="min-w-0">
-          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-sans">결집 온도</p>
+          <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-1 font-sans">결집 온도</p>
           <div className="h-24 min-w-0">
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -22 }}>
                 <defs>
                   <linearGradient id="heatGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.5} />
-                    <stop offset="100%" stopColor="#06b6d4" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#02b8cc" stopOpacity={0.5} />
+                    <stop offset="100%" stopColor="#02b8cc" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="#1e293b" strokeDasharray="2 4" vertical={false} />
+                <CartesianGrid stroke="#23252a" strokeDasharray="2 4" vertical={false} />
                 <XAxis dataKey="label" tick={AXIS_STYLE} axisLine={false} tickLine={false} minTickGap={24} />
                 <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} width={34} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
-                <Area type="monotone" dataKey="rallyHeat" stroke="#06b6d4" strokeWidth={1.5} fill="url(#heatGrad)" name="결집 온도" />
+                <Area type="monotone" dataKey="rallyHeat" stroke="#02b8cc" strokeWidth={1.5} fill="url(#heatGrad)" name="결집 온도" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -81,16 +81,16 @@ export const TalkTimelineDashboard: React.FC<TalkTimelineDashboardProps> = ({ po
 
         {/* 논쟁 + 리스크 */}
         <div className="min-w-0">
-          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-sans">논쟁 · 리스크</p>
+          <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-1 font-sans">논쟁 · 리스크</p>
           <div className="h-24 min-w-0">
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -22 }}>
-                <CartesianGrid stroke="#1e293b" strokeDasharray="2 4" vertical={false} />
+                <CartesianGrid stroke="#23252a" strokeDasharray="2 4" vertical={false} />
                 <XAxis dataKey="label" tick={AXIS_STYLE} axisLine={false} tickLine={false} minTickGap={24} />
                 <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} width={34} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
-                <Line type="monotone" dataKey="disputeLevel" stroke="#3b82f6" strokeWidth={1.5} dot={false} name="논쟁" />
-                <Line type="monotone" dataKey="riskCount" stroke="#f43f5e" strokeWidth={1.5} dot={false} name="리스크" />
+                <Line type="monotone" dataKey="disputeLevel" stroke="#6366f1" strokeWidth={1.5} dot={false} name="논쟁" />
+                <Line type="monotone" dataKey="riskCount" stroke="#eb5757" strokeWidth={1.5} dot={false} name="리스크" />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -98,16 +98,16 @@ export const TalkTimelineDashboard: React.FC<TalkTimelineDashboardProps> = ({ po
 
         {/* CPM + 미응답 */}
         <div className="min-w-0">
-          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 font-sans">활성도 · 미응답</p>
+          <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider mb-1 font-sans">활성도 · 미응답</p>
           <div className="h-24 min-w-0">
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -22 }}>
-                <CartesianGrid stroke="#1e293b" strokeDasharray="2 4" vertical={false} />
+                <CartesianGrid stroke="#23252a" strokeDasharray="2 4" vertical={false} />
                 <XAxis dataKey="label" tick={AXIS_STYLE} axisLine={false} tickLine={false} minTickGap={24} />
                 <YAxis tick={AXIS_STYLE} axisLine={false} tickLine={false} width={34} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
-                <Line type="monotone" dataKey="cpm" stroke="#a78bfa" strokeWidth={1.5} dot={false} name="CPM" />
-                <Line type="monotone" dataKey="unansweredCount" stroke="#10b981" strokeWidth={1.5} dot={false} name="미응답" />
+                <Line type="monotone" dataKey="cpm" stroke="#8b5cf6" strokeWidth={1.5} dot={false} name="CPM" />
+                <Line type="monotone" dataKey="unansweredCount" stroke="#27a644" strokeWidth={1.5} dot={false} name="미응답" />
               </LineChart>
             </ResponsiveContainer>
           </div>

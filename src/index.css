@@ -1,17 +1,142 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   LiveChat Radar — Linear 디자인 시스템 적용
+   출처: https://styles.refero.design/style/90ce5883-bb24-4466-93f7-801cd617b0d1
+   "midnight precision instrument" — 다크 커맨드 센터
+
+   구현 전략: Tailwind 4 @theme으로 팔레트를 재정의한다. 컴포넌트의 slate-* 와 cyan-*
+   클래스를 그대로 두고 색 값만 Linear 토큰으로 치환하므로, 의미(6축 색상)를
+   유지하면서 전체 톤이 한 번에 바뀐다.
+
+   상세 근거와 의도적 이탈은 리포 루트의 DESIGN.md 참조.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@theme {
+  /* ── 뉴트럴: 캔버스 → 타입 (Linear 원본) ───────────────────────────────── */
+  --color-slate-950: #08090a; /* Void      — 페이지 캔버스 */
+  --color-slate-900: #0f1011; /* Carbon    — 카드 표면, 내비 */
+  --color-slate-850: #161718; /* Obsidian  — 상승 표면 */
+  --color-slate-800: #23252a; /* Graphite  — 기본 보더 */
+  --color-slate-700: #383b3f; /* Smoke     — 고대비 hairline */
+  --color-slate-600: #62666d; /* Ash       — 약화 본문 */
+  --color-slate-500: #8a8f98; /* Fog       — 3차 텍스트, placeholder */
+  --color-slate-400: #9ba1a9; /* (보간)    — 고밀도 라벨 가독성 확보용 */
+  --color-slate-300: #d0d6e0; /* Mist      — 2차 제목, 버튼 텍스트 */
+  --color-slate-200: #e5e5e6; /* Bone      — 본문 */
+  --color-slate-100: #f4f4f5;
+  --color-slate-50: #ffffff;  /* Paper     — 최고 대비 제목 */
+
+  /* ── 6축 의미 색상 ────────────────────────────────────────────────────────
+     각 축의 색은 장식이 아니라 정보다. Linear의 태그·배지 액센트에 대응시킨다.
+     amber(정서)만 의도적 확장 — 6축을 구분하려면 6색이 필요하고 Linear 팔레트에
+     따뜻한 색조가 coral뿐이며 coral은 리스크에 써야 한다. 상세는 DESIGN.md. */
+
+  /* agenda — Signal Teal */
+  --color-cyan-300: #5fd8e4;
+  --color-cyan-400: #02b8cc;
+  --color-cyan-500: #02b8cc;
+  --color-sky-400: #02b8cc;
+
+  /* stance — Iris Violet */
+  --color-blue-300: #a5b4fc;
+  --color-blue-400: #6366f1;
+  --color-blue-500: #6366f1;
+  --color-indigo-300: #a5b4fc;
+  --color-indigo-400: #6366f1;
+  --color-indigo-500: #6366f1;
+
+  /* emotion — Amber (의도적 확장) */
+  --color-amber-300: #f7cf6b;
+  --color-amber-400: #f2b422;
+  --color-amber-500: #f2b422;
+  --color-orange-500: #f2b422;
+
+  /* inquiry — Pulse Green */
+  --color-emerald-300: #6ed88a;
+  --color-emerald-400: #27a644;
+  --color-emerald-500: #27a644;
+
+  /* loyalty — Lavender */
+  --color-violet-300: #c4b5fd;
+  --color-violet-400: #8b5cf6;
+  --color-violet-500: #8b5cf6;
+  --color-purple-400: #8b5cf6;
+
+  /* risk — Coral Red */
+  --color-rose-300: #f4908f;
+  --color-rose-400: #eb5757;
+  --color-rose-500: #eb5757;
+  --color-red-400: #eb5757;
+  --color-red-500: #eb5757;
+
+  /* ── 주 액션 전용: Acid Lime ──────────────────────────────────────────────
+     Linear 규칙 — 화면당 단일 주 액션에만 쓴다. 축 색상으로는 절대 쓰지 않는다. */
+  --color-lime-300: #edf76b;
+  --color-lime-400: #e4f222;
+  --color-lime-500: #e4f222;
+
+  /* ── 반경: Linear 스펙 (버튼 6 / 카드 12 / 배지 4) ───────────────────────── */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+
+  /* ── 타이포 ──────────────────────────────────────────────────────────────
+     Linear은 Inter Variable + Berkeley Mono. Berkeley Mono는 유료 폰트이므로
+     JetBrains Mono로 대체한다 (DESIGN.md에 기록). */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
 @layer base {
+  html {
+    /* Linear의 OpenType 설정 — 1자 대체·영문자 대체·slashed zero.
+       숫자가 많은 콘솔에서 0/O 혼동을 없애는 것이 실질적 이득이다. */
+    font-feature-settings: 'cv01' 1, 'ss03' 1, 'zero' 1;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
   body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background-color: #020617;
+    font-family: var(--font-sans);
+    background-color: #08090a; /* Void */
+    color: #e5e5e6;            /* Bone */
+    /* Linear 트래킹: 15px 이하 −0.011em */
+    letter-spacing: -0.011em;
+  }
+
+  /* 큰 타입일수록 트래킹을 조인다 (Linear: 20–32px −0.012em, 48px+ −0.022em) */
+  h1 { letter-spacing: -0.022em; }
+  h2, h3 { letter-spacing: -0.012em; }
+
+  /* 수치는 mono + tabular — 실시간 대시보드에서 숫자가 흔들리면 읽기 어렵다 */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
   }
 }
 
-.mono {
-  font-family: 'JetBrains Mono', monospace;
+/* 그림자 대신 hairline 보더로 깊이를 만든다 (Linear 규칙).
+   0.5px는 고DPI에서만 렌더되므로 fallback으로 1px 보더 색을 낮게 쓴다. */
+@supports (border-width: 0.5px) {
+  .hairline {
+    border-width: 0.5px;
+  }
 }
 
-/* Custom glow utility */
+/* CLI 도구의 감각 — 0.15~0.2s, 스프링·패럴랙스 금지 */
+@layer base {
+  button,
+  a,
+  input,
+  textarea {
+    transition-duration: 0.15s;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
 @keyframes pulseSlow {
   0%, 100% { opacity: 0.8; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(1.05); }

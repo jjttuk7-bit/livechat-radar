@@ -49,7 +49,7 @@ export const SupporterBoard: React.FC<SupporterBoardProps> = ({ profiles, summar
     <section className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden min-w-0">
       <header className="px-3 py-2.5 border-b border-slate-800 flex items-center gap-1.5">
         <Heart size={15} className="text-violet-400 shrink-0" />
-        <h2 className="text-[11px] font-bold text-slate-200 font-sans">후원·충성 보드</h2>
+        <h2 className="text-[11px] font-semibold text-slate-200 font-sans">후원·충성 보드</h2>
         <span className="ml-auto text-[10px] font-mono text-slate-500 flex items-center gap-1">
           <Users size={11} />
           {summary.total}
@@ -91,7 +91,7 @@ export const SupporterBoard: React.FC<SupporterBoardProps> = ({ profiles, summar
             <ul className="space-y-1.5">
               {top.map((p) => (
                 <li key={p.author} className="flex items-center gap-1.5 min-w-0">
-                  <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold font-sans shrink-0 ${FLAG_CHIP[p.flag]}`}>
+                  <span className={`px-1.5 py-0.5 rounded border text-[9px] font-semibold font-sans shrink-0 ${FLAG_CHIP[p.flag]}`}>
                     {FLAG_LABEL[p.flag]}
                   </span>
                   <span className="text-[11px] text-slate-300 font-sans truncate flex-1 min-w-0">{p.author}</span>
@@ -109,7 +109,7 @@ export const SupporterBoard: React.FC<SupporterBoardProps> = ({ profiles, summar
             {/* 주의 목록 — 행위 기준 */}
             {watch.length > 0 && (
               <div className="pt-2 border-t border-slate-800">
-                <p className="flex items-center gap-1 text-[9px] font-bold text-rose-300 font-sans mb-1">
+                <p className="flex items-center gap-1 text-[9px] font-semibold text-rose-300 font-sans mb-1">
                   <ShieldOff size={10} /> 반복 위반 행위 {watch.length}명
                 </p>
                 <ul className="space-y-0.5">

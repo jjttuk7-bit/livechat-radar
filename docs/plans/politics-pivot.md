@@ -296,7 +296,7 @@
 
 - **큐시트 등록 모달** ← `ProductRegisterModal` 재사용: 오늘 다룰 이슈명 · 관련 인물 · 준비 자료 · 예상 질문(사전 FAQ) 입력
 - 축별 색상: 아젠다=시안 / 반응=블루 / 정서=앰버 / 요구=에메랄드 / 후원=바이올렛 / **리스크=로즈**
-- 기존 `react-high-density-ui` 토큰(#020617, JetBrains Mono, 글로우) 준수
+- 디자인 시스템: Linear("midnight precision instrument") — Void `#08090a` 캔버스, hairline 보더(그림자 금지), 6축 의미 색상, 주 액션 Acid Lime. 토큰 원문은 리포 루트 `DESIGN.md` (2026-08-13 적용)
 
 ---
 

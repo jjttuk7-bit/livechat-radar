@@ -1,6 +1,6 @@
 ---
 name: react-high-density-ui
-description: LiveChat Radar의 React 19 + Tailwind 4 + Lucide-React + Motion 기반 High Density 다크 대시보드에 UI 요소(카드/모달/리스트/메트릭)를 추가/수정한다. #020617 우주적 다크 배경, 슬레이트/시안 글로우 보더, JetBrains Mono 숫자 폰트 컨벤션을 따른다. 새 대시보드 카드, 분석 결과 시각화, 모달, 카테고리 색상 변경 시 반드시 이 스킬 사용.
+description: LiveChat Radar의 React 19 + Tailwind 4 + Lucide-React + Motion 기반 High Density 다크 대시보드에 UI 요소(카드/패널/모달/리스트/메트릭/차트)를 추가·수정한다. Linear 디자인 시스템("midnight precision instrument") 토큰을 따른다 — Void #08090a 캔버스, hairline 보더, 6축 의미 색상, 주 액션 Acid Lime, 700+ 굵기 금지. 새 패널·시각화·모달·색상 변경 시 반드시 이 스킬 사용. 토큰 원문은 리포 루트 DESIGN.md.
 ---
 
 # react-high-density-ui — High Density 다크 대시보드 UI
@@ -9,29 +9,65 @@ LiveChat Radar의 디자인 철학("정보 점유율 100%, 시각 방해 최소�
 
 ## 디자인 토큰 (필수 준수)
 
-### 색상
+**단일 출처는 `src/index.css`의 `@theme` 블록이고, 근거와 이탈 기록은 리포 루트 `DESIGN.md`다.**
+Tailwind 표준 색 이름의 *값만* 재정의해 두었으므로, 컴포넌트에서는 평소처럼 `bg-slate-900`,
+`text-cyan-400`을 쓰면 Linear 팔레트가 적용된다. 새 팔레트 이름을 만들지 마라.
+
+### 뉴트럴 (Linear)
 ```
-배경 (앱):       bg-[#020617]
-배경 (카드):     bg-slate-900/80
-보더 (기본):     border border-slate-800
-보더 (호버):     hover:border-slate-700/80
-텍스트 (본문):   text-slate-200
+캔버스:          bg-[#08090a]  또는 bg-slate-950   (Void)
+카드 표면:       bg-slate-900/60                  (Carbon #0f1011)
+상승 표면:       bg-slate-850                     (Obsidian #161718)
+보더 (기본):     border border-slate-800          (Graphite #23252a)
+보더 (고대비):   border-slate-700                 (Smoke #383b3f)
+텍스트 (본문):   text-slate-200                   (Bone #e5e5e6)
+텍스트 (2차):    text-slate-300                   (Mist #d0d6e0)
 텍스트 (보조):   text-slate-400
-텍스트 (약화):   text-slate-500
-글로우 데코:     bg-{indigo|cyan|emerald|amber|rose}-500/5 blur-2xl
+텍스트 (약화):   text-slate-500 / text-slate-600
 ```
 
-### 액센트 색상 (6축별)
+**깊이는 보더로만 만든다.** 그림자·글로우·블러를 쓰지 않는다 (Linear 규칙).
+기존 `blur-2xl` 글로우 데코 패턴은 폐기됐다.
+
+### 6축 의미 색상 — 색이 곧 정보다
 ```
-agenda  (아젠다·이슈):  cyan-400 / cyan-500
-stance  (반응·의견):    blue-400 / blue-500
-emotion (정서·온도):    amber-400 / orange-500
-inquiry (질문·요구):    emerald-400 / emerald-500
-loyalty (참여·후원):    violet-400 / violet-500
-risk    (리스크·운영):  rose-400 / red-500      ← 유일한 경고색
-urgent (action):  red-400 / red-500
-action (presenter): indigo-400 / indigo-500
-info:             slate-400 / slate-500
+agenda  (아젠다·이슈):  cyan-400     #02b8cc  Signal Teal
+stance  (반응·의견):    blue-400     #6366f1  Iris Violet
+emotion (정서·온도):    amber-400    #f2b422  (의도적 확장 — DESIGN.md 참조)
+inquiry (질문·요구):    emerald-400  #27a644  Pulse Green
+loyalty (참여·후원):    violet-400   #8b5cf6  Lavender
+risk    (리스크·운영):  rose-400     #eb5757  Coral Red  ← 유일한 경고색
+```
+
+### 주 액션 — Acid Lime
+```
+lime-400 #e4f222 — 화면당 단일 주 액션에만. 축 색상으로는 절대 쓰지 않는다.
+solid 버튼: bg-lime-400 text-slate-950 hover:bg-lime-300
+```
+
+
+## Linear 규율 (반드시)
+
+| 규칙 | 이유 |
+|------|------|
+| **굵기 700+ 금지** — `font-semibold`(600)까지만 | 위계는 색과 크기로 만든다. `font-bold`/`font-extrabold`를 쓰지 마라 |
+| **UI 컴포넌트에 그라디언트 금지** | 로고 마크도 평면 표면 + 단색 아이콘이다 |
+| **그림자·글로우·블러 금지** | 깊이는 hairline 보더와 표면 밝기 차이로 |
+| **반경** 버튼 `rounded-lg`(6px) / 카드 `rounded-xl`(12px) / 모달 `rounded-2xl`(16px) | Linear 스펙 |
+| **모션** 0.15s, `cubic-bezier(0.4,0,0.2,1)`. 스프링·패럴랙스 금지 | CLI 도구의 감각 |
+| **숫자는 `font-mono`** (tabular-nums 자동 적용) | 실시간 갱신 숫자가 자리마다 흔들리면 못 읽는다 |
+
+### Recharts
+CSS 클래스를 받지 못하므로 색을 직접 넘긴다. 반드시 Linear 토큰 값을 쓴다:
+```
+그리드/보더 #23252a · 축 텍스트 #62666d · 툴팁 배경 #08090a · 툴팁 텍스트 #e5e5e6
+시리즈: #02b8cc(아젠다) #6366f1(논쟁) #eb5757(리스크) #8b5cf6(CPM) #27a644(미응답)
+```
+`ResponsiveContainer`는 flex 부모에서 폭이 붕괴한다 — 조상에 `min-w-0`, 컨테이너에 `minWidth={0}`.
+
+### 상태
+```
+good: emerald-400 / warning: amber-400 / danger: rose-400 / normal: slate-200
 sentiment.positive: emerald-400
 sentiment.neutral:  slate-400
 sentiment.negative: rose-400

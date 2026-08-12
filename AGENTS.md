@@ -8,7 +8,7 @@
 
 **기술 스택 메모 (참고용, 자세한 패턴은 스킬에서):**
 - AI: OpenAI `chat.completions` + Structured Outputs (`json_schema` strict 모드), 모델 `gpt-4o-mini` 우선 / `gpt-4o` 폴백
-- Frontend: React 19 + Tailwind CSS 4 + Lucide-React + Motion, High Density 다크 테마(`#020617`)
+- Frontend: React 19 + Tailwind CSS 4 + Lucide-React + Motion + Recharts. 디자인 시스템은 Linear — 캔버스 `#08090a`, 토큰은 `src/index.css` `@theme`, 상세는 `DESIGN.md`
 - Backend: Express + `tsx` (TypeScript Native Type Stripping), 모노리식 `server.ts`
 - 외부 API: YouTube Data API v3
 

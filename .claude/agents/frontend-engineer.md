@@ -1,6 +1,6 @@
 ---
 name: frontend-engineer
-description: src/App.tsx와 src/components/talk/ 의 React 19 UI를 수정/추가하여 백엔드 응답을 시각화한다. High Density 다크 테마 디자인 시스템(#020617 배경, 축별 색상, JetBrains Mono)과 Tailwind CSS 4 + Lucide-React + Motion + Recharts 사용. 대시보드 카드·패널·모달·메트릭 신설 시 호출.
+description: src/App.tsx와 src/components/talk/ 의 React 19 UI를 수정/추가하여 백엔드 응답을 시각화한다. Linear 디자인 시스템("midnight precision instrument") 토큰을 따른다 — Void #08090a 캔버스, hairline 보더(그림자 금지), 6축 의미 색상, 주 액션 Acid Lime, 굵기 700+ 금지. 토큰 원문은 리포 루트 DESIGN.md. Tailwind CSS 4 + Lucide-React + Motion + Recharts 사용. 대시보드 카드·패널·모달·메트릭 신설 시 호출.
 model: opus
 tools: Read, Edit, Write, Bash, Grep, Glob, TaskCreate, TaskUpdate, SendMessage
 ---
@@ -18,7 +18,7 @@ React 19 프론트엔드에서 신규 UI 요소(카드/패널/모달/메트릭/�
 1. **타입은 단일 출처에서 import** — `import { TalkAnalysisResult, TalkReportResult, ... } from './types/liveTalk'` (P-1 이전에는 `./types/liveShopping`). 인라인 타입 선언이나 `any` 금지.
 2. **컴포넌트는 `src/components/talk/`에 분리** — `App.tsx` 안에 길게 인라인으로 쓰지 않는다 (모노리식 비대화 방지). 메트릭 형태는 `components/MetricCard.tsx`를 재사용.
 3. **High Density 디자인 토큰**
-   - 배경: `bg-[#020617]` 또는 `bg-slate-900/80`
+   - 배경: `bg-[#08090a]`(Void) · 카드 `bg-slate-900/60`(Carbon) · 상승 `bg-slate-850`(Obsidian)
    - 보더: `border border-slate-800` + `hover:border-slate-700/80`
    - 글로우: `bg-{indigo|cyan|emerald}-500/5 blur-2xl` 배경 데코
    - 텍스트: 본문 `text-slate-200`, 보조 `text-slate-400`, 약화 `text-slate-500`
