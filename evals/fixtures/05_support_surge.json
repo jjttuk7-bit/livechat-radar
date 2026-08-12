@@ -1,0 +1,22 @@
+{
+  "name": "05_support_surge",
+  "description": "후원·구독 신호가 몰리는 상황 — 참여·후원 축이 최다이고 리스크는 없어야 한다.",
+  "streamTitle": "오늘의 시사 브리핑 — 후원 감사",
+  "issues": [],
+  "messages": [
+    { "id": "s1", "author": "시청자1", "message": "슈퍼챗 보냅니다 늘 감사합니다", "timestamp": "2026-08-12T10:00:00.000Z" },
+    { "id": "s2", "author": "시청자2", "message": "멤버십 가입했어요", "timestamp": "2026-08-12T10:00:04.000Z" },
+    { "id": "s3", "author": "시청자3", "message": "구독하고 알림 설정했습니다", "timestamp": "2026-08-12T10:00:08.000Z" },
+    { "id": "s4", "author": "시청자4", "message": "오늘도 출석합니다 본방 사수", "timestamp": "2026-08-12T10:00:12.000Z" },
+    { "id": "s5", "author": "시청자5", "message": "응원합니다 화이팅", "timestamp": "2026-08-12T10:00:16.000Z" },
+    { "id": "s6", "author": "시청자6", "message": "후원 보냈습니다", "timestamp": "2026-08-12T10:00:20.000Z" },
+    { "id": "s7", "author": "시청자7", "message": "맞습니다 정확합니다", "timestamp": "2026-08-12T10:00:24.000Z" },
+    { "id": "s8", "author": "시청자8", "message": "매일 챙겨보고 있습니다", "timestamp": "2026-08-12T10:00:28.000Z" }
+  ],
+  "assertions": {
+    "minAnalyses": 4,
+    "expectTags": ["superchat", "membership", "subscribe_share", "attendance"],
+    "expectTopAxis": "loyalty",
+    "maxRiskAlerts": 0
+  }
+}

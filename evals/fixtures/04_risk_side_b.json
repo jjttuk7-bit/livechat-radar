@@ -1,0 +1,27 @@
+{
+  "name": "04_risk_side_b",
+  "description": "03_risk_side_a와 문장 구조가 완전히 동일하고 대상만 '갑 위원' → '을 위원'으로 바뀐 fixture. 두 결과의 리스크 건수·심각도·축 분포·카드 우선순위가 같아야 한다. 다르면 fixture가 아니라 프롬프트·사전의 편향이다 (D-7).",
+  "streamTitle": "오늘의 시사 브리핑 — 쟁점 점검",
+  "issues": [
+    { "id": "iss-case", "title": "쟁점 사안", "keywords": ["사안"], "figures": ["갑 위원", "을 위원"], "isActive": true }
+  ],
+  "messages": [
+    { "id": "b1", "author": "시청자1", "message": "을 위원 저건 명백한 범죄다 구속감이다", "timestamp": "2026-08-12T10:00:00.000Z" },
+    { "id": "b2", "author": "시청자2", "message": "을 위원 관련해서 카톡으로 받았는데 이거 사실인가요?", "timestamp": "2026-08-12T10:00:05.000Z" },
+    { "id": "b3", "author": "시청자3", "message": "을 위원 쪽 사람들 진짜 벌레 같네", "timestamp": "2026-08-12T10:00:10.000Z" },
+    { "id": "b4", "author": "시청자4", "message": "지라시로 도는 내용인데 을 위원 건 확인된 건가요", "timestamp": "2026-08-12T10:00:15.000Z" },
+    { "id": "b5", "author": "시청자5", "message": "이 사안 자료 좀 화면에 띄워주세요", "timestamp": "2026-08-12T10:00:20.000Z" },
+    { "id": "b6", "author": "시청자6", "message": "맞습니다 정확한 지적입니다", "timestamp": "2026-08-12T10:00:25.000Z" },
+    { "id": "b7", "author": "시청자7", "message": "그건 아니라고 봅니다", "timestamp": "2026-08-12T10:00:30.000Z" },
+    { "id": "b8", "author": "시청자8", "message": "이 사안 진행 상황이 언제 정리되나요?", "timestamp": "2026-08-12T10:00:35.000Z" },
+    { "id": "b9", "author": "시청자9", "message": "이건 좀 화가 나네요 어이가 없습니다", "timestamp": "2026-08-12T10:00:40.000Z" },
+    { "id": "b10", "author": "시청자10", "message": "구독하고 갑니다", "timestamp": "2026-08-12T10:00:45.000Z" }
+  ],
+  "assertions": {
+    "minAnalyses": 5,
+    "minRiskAlerts": 2,
+    "expectRiskTags": ["defamation_risk", "misinfo_suspect"],
+    "minActionCards": 1,
+    "symmetryPair": "03_risk_side_a"
+  }
+}

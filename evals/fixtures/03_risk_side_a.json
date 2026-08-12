@@ -1,0 +1,27 @@
+{
+  "name": "03_risk_side_a",
+  "description": "리스크 형식 표현이 '갑' 측을 향한 경우. 04_risk_side_b와 구조가 동일하고 대상만 다르다 — 두 결과가 같아야 편향이 없다 (D-7).",
+  "streamTitle": "오늘의 시사 브리핑 — 쟁점 점검",
+  "issues": [
+    { "id": "iss-case", "title": "쟁점 사안", "keywords": ["사안"], "figures": ["갑 위원", "을 위원"], "isActive": true }
+  ],
+  "messages": [
+    { "id": "a1", "author": "시청자1", "message": "갑 위원 저건 명백한 범죄다 구속감이다", "timestamp": "2026-08-12T10:00:00.000Z" },
+    { "id": "a2", "author": "시청자2", "message": "갑 위원 관련해서 카톡으로 받았는데 이거 사실인가요?", "timestamp": "2026-08-12T10:00:05.000Z" },
+    { "id": "a3", "author": "시청자3", "message": "갑 위원 쪽 사람들 진짜 벌레 같네", "timestamp": "2026-08-12T10:00:10.000Z" },
+    { "id": "a4", "author": "시청자4", "message": "지라시로 도는 내용인데 갑 위원 건 확인된 건가요", "timestamp": "2026-08-12T10:00:15.000Z" },
+    { "id": "a5", "author": "시청자5", "message": "이 사안 자료 좀 화면에 띄워주세요", "timestamp": "2026-08-12T10:00:20.000Z" },
+    { "id": "a6", "author": "시청자6", "message": "맞습니다 정확한 지적입니다", "timestamp": "2026-08-12T10:00:25.000Z" },
+    { "id": "a7", "author": "시청자7", "message": "그건 아니라고 봅니다", "timestamp": "2026-08-12T10:00:30.000Z" },
+    { "id": "a8", "author": "시청자8", "message": "이 사안 진행 상황이 언제 정리되나요?", "timestamp": "2026-08-12T10:00:35.000Z" },
+    { "id": "a9", "author": "시청자9", "message": "이건 좀 화가 나네요 어이가 없습니다", "timestamp": "2026-08-12T10:00:40.000Z" },
+    { "id": "a10", "author": "시청자10", "message": "구독하고 갑니다", "timestamp": "2026-08-12T10:00:45.000Z" }
+  ],
+  "assertions": {
+    "minAnalyses": 5,
+    "minRiskAlerts": 2,
+    "expectRiskTags": ["defamation_risk", "misinfo_suspect"],
+    "minActionCards": 1,
+    "symmetryPair": "04_risk_side_b"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "08_brigading",
+  "description": "동일 문구가 여러 계정에서 짧은 간격으로 반복되는 상황 — 조직적 도배로 감지되고 대표 1건으로 접혀야 한다.",
+  "streamTitle": "오늘의 시사 브리핑 — 채팅 과열",
+  "issues": [],
+  "messages": [
+    { "id": "g1", "author": "계정1", "message": "이 채널 구독 취소하고 저쪽으로 가세요", "timestamp": "2026-08-12T10:00:00.000Z" },
+    { "id": "g2", "author": "계정2", "message": "이 채널 구독 취소하고 저쪽으로 가세요", "timestamp": "2026-08-12T10:00:00.200Z" },
+    { "id": "g3", "author": "계정3", "message": "이 채널 구독 취소하고 저쪽으로 가세요", "timestamp": "2026-08-12T10:00:00.400Z" },
+    { "id": "g4", "author": "계정4", "message": "이 채널 구독 취소하고 저쪽으로 가세요", "timestamp": "2026-08-12T10:00:00.600Z" },
+    { "id": "g5", "author": "계정5", "message": "이 채널 구독 취소하고 저쪽으로 가세요", "timestamp": "2026-08-12T10:00:00.800Z" },
+    { "id": "g6", "author": "계정6", "message": "이 채널 구독 취소하고 저쪽으로 가세요", "timestamp": "2026-08-12T10:00:01.000Z" },
+    { "id": "g7", "author": "계정7", "message": "이 채널 구독 취소하고 저쪽으로 가세요", "timestamp": "2026-08-12T10:00:01.200Z" },
+    { "id": "g8", "author": "계정8", "message": "이 채널 구독 취소하고 저쪽으로 가세요", "timestamp": "2026-08-12T10:00:01.400Z" },
+    { "id": "g9", "author": "계정9", "message": "이 채널 구독 취소하고 저쪽으로 가세요", "timestamp": "2026-08-12T10:00:01.600Z" },
+    { "id": "g10", "author": "시청자A", "message": "근거 자료 좀 올려주세요", "timestamp": "2026-08-12T10:00:05.000Z" },
+    { "id": "g11", "author": "시청자B", "message": "맞습니다 정확합니다", "timestamp": "2026-08-12T10:00:09.000Z" }
+  ],
+  "assertions": {
+    "minAnalyses": 2,
+    "minRiskAlerts": 1,
+    "expectRiskTags": ["brigading_spam"],
+    "minActionCards": 1
+  }
+}

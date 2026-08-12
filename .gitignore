@@ -9,3 +9,6 @@ coverage/
 
 # 하네스 워크스페이스 — 중간 산출물(spec/changes/qa_report) 보관용. 리포에는 포함 안 함.
 _workspace/
+
+# 크로스세션 로컬 폴백 저장소 (Supabase 미설정 시). 참여자 해시만 담기지만 리포에는 포함하지 않는다.
+.data/

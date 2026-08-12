@@ -1,0 +1,28 @@
+{
+  "name": "01_agenda_heavy",
+  "description": "특정 이슈에 관심이 집중된 상황 — 아젠다 레이더가 큐시트 이슈를 상위로 올려야 한다.",
+  "streamTitle": "오늘의 시사 브리핑 — 예산안 쟁점",
+  "issues": [
+    { "id": "iss-budget", "title": "예산안 처리", "keywords": ["예산안", "예산"], "figures": ["위원장"], "isActive": true },
+    { "id": "iss-hearing", "title": "청문회 일정", "keywords": ["청문회"] }
+  ],
+  "messages": [
+    { "id": "m1", "author": "시청자1", "message": "예산안 처리 일정이 어떻게 되나요?", "timestamp": "2026-08-12T10:00:00.000Z" },
+    { "id": "m2", "author": "시청자2", "message": "예산안 관련 자료 좀 화면에 띄워주세요", "timestamp": "2026-08-12T10:00:05.000Z" },
+    { "id": "m3", "author": "시청자3", "message": "위원장 발언 부분 다시보기로 확인할 수 있나요", "timestamp": "2026-08-12T10:00:10.000Z" },
+    { "id": "m4", "author": "시청자4", "message": "이 예산 문제 다음 방송에서도 다뤄주세요", "timestamp": "2026-08-12T10:00:15.000Z" },
+    { "id": "m5", "author": "시청자5", "message": "지난주에 다루신 그 건은 그 뒤로 어떻게 됐나요?", "timestamp": "2026-08-12T10:00:20.000Z" },
+    { "id": "m6", "author": "시청자6", "message": "예산안 쉽게 설명해주세요 처음 봅니다", "timestamp": "2026-08-12T10:00:25.000Z" },
+    { "id": "m7", "author": "시청자7", "message": "관련 전문가 초대해주세요", "timestamp": "2026-08-12T10:00:30.000Z" },
+    { "id": "m8", "author": "시청자8", "message": "맞습니다 정확한 지적입니다", "timestamp": "2026-08-12T10:00:35.000Z" },
+    { "id": "m9", "author": "시청자9", "message": "예산 관련 근거 출처가 어디인지 알려주세요", "timestamp": "2026-08-12T10:00:40.000Z" },
+    { "id": "m10", "author": "시청자10", "message": "오늘도 출석합니다", "timestamp": "2026-08-12T10:00:45.000Z" }
+  ],
+  "assertions": {
+    "minAnalyses": 5,
+    "expectTags": ["source_request", "topic_request", "followup_request"],
+    "minUnanswered": 3,
+    "minAgendaInterest": 2,
+    "maxRiskAlerts": 1
+  }
+}

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "test": "tsx src/lib/simulateShopAnalysis.test.ts && tsx src/lib/buildViewerProfiles.test.ts && tsx src/lib/conversion.test.ts && tsx src/lib/postLive.test.ts && tsx src/lib/scriptAssist.test.ts && tsx src/lib/productBlocks.test.ts",
+    "test": "tsx src/lib/simulateShopAnalysis.test.ts && tsx src/lib/buildViewerProfiles.test.ts && tsx src/lib/conversion.test.ts && tsx src/lib/postLive.test.ts && tsx src/lib/scriptAssist.test.ts && tsx src/lib/productBlocks.test.ts && tsx src/lib/talkTaxonomy.test.ts && tsx src/lib/dedupe.test.ts && tsx src/lib/prefilter.test.ts && tsx src/lib/simulateTalkAnalysis.test.ts && tsx src/lib/supporters.test.ts && tsx src/lib/crossSession.test.ts",
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",

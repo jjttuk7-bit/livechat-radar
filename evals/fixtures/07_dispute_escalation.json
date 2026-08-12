@@ -1,0 +1,23 @@
+{
+  "name": "07_dispute_escalation",
+  "description": "이견과 맞불이 격화되는 상황 — 논쟁 강도가 잡히고 사실관계 정리 처방이 나와야 한다. 단, 어느 쪽 편도 들지 않아야 한다.",
+  "streamTitle": "오늘의 시사 브리핑 — 쟁점 토론",
+  "issues": [{ "id": "iss-d", "title": "쟁점 토론", "keywords": ["쟁점"], "isActive": true }],
+  "messages": [
+    { "id": "d1", "author": "시청자1", "message": "그건 아니라고 봅니다", "timestamp": "2026-08-12T10:00:00.000Z" },
+    { "id": "d2", "author": "시청자2", "message": "동의하기 어렵습니다", "timestamp": "2026-08-12T10:00:04.000Z" },
+    { "id": "d3", "author": "시청자3", "message": "저쪽도 똑같이 그랬잖아요", "timestamp": "2026-08-12T10:00:08.000Z" },
+    { "id": "d4", "author": "시청자4", "message": "그쪽은 안 그랬나요 피차일반이죠", "timestamp": "2026-08-12T10:00:12.000Z" },
+    { "id": "d5", "author": "시청자5", "message": "맞습니다 정확한 지적입니다", "timestamp": "2026-08-12T10:00:16.000Z" },
+    { "id": "d6", "author": "시청자6", "message": "진짜 맞나요 확인이 필요합니다", "timestamp": "2026-08-12T10:00:20.000Z" },
+    { "id": "d7", "author": "시청자7", "message": "근거 자료 좀 올려주세요", "timestamp": "2026-08-12T10:00:24.000Z" },
+    { "id": "d8", "author": "시청자8", "message": "이건 좀 화가 나네요", "timestamp": "2026-08-12T10:00:28.000Z" },
+    { "id": "d9", "author": "시청자9", "message": "다만 그 부분은 일리는 있습니다", "timestamp": "2026-08-12T10:00:32.000Z" },
+    { "id": "d10", "author": "시청자10", "message": "매번 똑같은 얘기라 지겹네요", "timestamp": "2026-08-12T10:00:36.000Z" }
+  ],
+  "assertions": {
+    "minAnalyses": 5,
+    "expectTags": ["disagree_object", "whataboutism", "doubt_verify"],
+    "minActionCards": 1
+  }
+}
