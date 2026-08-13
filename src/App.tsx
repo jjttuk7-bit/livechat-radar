@@ -9,7 +9,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  Search, Sparkles, Bot, Video, MessageSquare, Activity, RotateCw,
+  Search, Sparkles, Bot, Video, Activity, RotateCw,
   FileText, X, AlertCircle, CheckCircle, Pause, Play, Users, Gauge,
 } from 'lucide-react';
 import { ChatMessage, StreamInfo } from './types';
@@ -28,6 +28,7 @@ import { SupporterBoard } from './components/talk/SupporterBoard';
 import { ParticipationPanel } from './components/talk/ParticipationPanel';
 import { TalkTimelineDashboard } from './components/talk/TalkTimelineDashboard';
 import { SessionHistoryPanel, type ReturningStatsView } from './components/talk/SessionHistoryPanel';
+import { LiveFeed } from './components/talk/LiveFeed';
 import type { AgendaTrend, SessionComparison } from './types/liveTalk';
 import { buildSupporterProfiles, summarizeSupporters } from './lib/supporters';
 import { buildParticipationFunnel, detectAppealWindow, deriveStats } from './lib/engagement';
@@ -53,6 +54,36 @@ const ANALYZE_WINDOW_MS = 180_000; // 3분
 
 /** 리포트 페이로드 상한 — 초과 시 앞을 자르지 않고 전 구간에서 균등 추출한다 */
 const REPORT_PAYLOAD_CAP = 20_000;
+
+/**
+ * 실시간 분석 요청 상한.
+ *
+ * 분석은 40초 주기로 돈다. 한 번의 요청이 그보다 오래 매달리면 다음 주기가 계속 밀리고,
+ * 최악의 경우 화면이 영영 갱신되지 않는다. fetch에는 기본 타임아웃이 없으므로 직접 건다.
+ */
+const ANALYZE_TIMEOUT_MS = 45_000;
+
+/** 종료 리포트는 방송 전체를 다루므로 더 길게 허용한다 */
+const REPORT_TIMEOUT_MS = 90_000;
+
+/**
+ * 응답을 JSON으로 안전하게 읽는다.
+ *
+ * 서버가 죽거나(서버리스 함수 실패·타임아웃·프록시 오류) 라우트를 못 찾으면 본문이
+ * JSON이 아니다. 그대로 res.json()을 부르면 "Unexpected token 'A' ... is not valid JSON"만
+ * 남고 **진짜 원인이 사라진다**. 상태 코드와 본문 앞부분을 담아 던져 진단 가능하게 만든다.
+ */
+async function readJson(res: Response, label: string): Promise<any> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    const snippet = text.trim().slice(0, 140).replace(/\s+/g, ' ');
+    throw new Error(
+      `${label} 서버가 JSON이 아닌 응답을 보냈습니다 (HTTP ${res.status}): ${snippet || '(빈 응답)'}`,
+    );
+  }
+}
 
 interface L1Summary {
   total: number;
@@ -124,11 +155,12 @@ export default function App() {
   // 최신 상태를 읽어야 하므로 ref로 미러링한다. (2026-06-06 stale closure 버그)
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const autoAnalyzeTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const chatListRef = useRef<HTMLDivElement | null>(null);
   const lastAnalyzedCountRef = useRef<number>(0);
   const isPollingRef = useRef<boolean>(false);
   const pollingRateRef = useRef<number>(3000);
   const messagesCountRef = useRef<number>(0);
+  /** CPM 인터벌이 최신 배열을 읽기 위한 미러 (인터벌 재생성을 막는다) */
+  const messagesRef = useRef<ChatMessage[]>([]);
   const isAnalyzingRef = useRef<boolean>(false);
   const runAIAnalysisRef = useRef<() => void>(() => {});
   const issuesRef = useRef<LiveIssue[]>([]);
@@ -150,26 +182,27 @@ export default function App() {
     }
   }, [successMsg]);
 
-  // ── 자동 스크롤 — 컨테이너만 움직인다 (scrollIntoView는 페이지 전체를 움직임) ─
-  useEffect(() => {
-    if (chatAutoScroll && chatListRef.current) {
-      chatListRef.current.scrollTo({ top: chatListRef.current.scrollHeight, behavior: 'smooth' });
-    }
-  }, [messages, chatAutoScroll]);
+  // 자동 스크롤은 LiveFeed가 스스로 처리한다 (부모가 남의 DOM을 만지지 않는다).
 
   // ── CPM 계산 ───────────────────────────────────────────────────────────────
+  //
+  // ⚠️ 이 인터벌은 **의존성 없이 한 번만** 건다.
+  //   이전에는 [messages, peakCpm]에 의존해서, 댓글이 들어올 때마다(폴링 ~3초) 인터벌이
+  //   해제·재생성됐다. 재생성 주기가 인터벌 주기(3초)보다 짧으면 타이머가 영영 발화하지
+  //   않는다 — 바쁜 채널일수록 CPM이 0에 고정된다. 실제로 서버 L1은 80 CPM인데
+  //   화면은 0을 표시했다. 최신 값은 ref로 읽는다.
   useEffect(() => {
-    const calcCpm = () => {
-      if (messages.length === 0) return;
+    const id = setInterval(() => {
+      const arr = messagesRef.current;
+      if (arr.length === 0) return;
       const oneMinuteAgo = Date.now() - 60000;
-      const recentCount = messages.filter((m) => new Date(m.timestamp).getTime() >= oneMinuteAgo).length;
+      const recentCount = arr.filter((m) => new Date(m.timestamp).getTime() >= oneMinuteAgo).length;
       setCpm(recentCount);
       cpmRef.current = recentCount;
-      if (recentCount > peakCpm) setPeakCpm(recentCount);
-    };
-    const interval = setInterval(calcCpm, 3000);
-    return () => clearInterval(interval);
-  }, [messages, peakCpm]);
+      setPeakCpm((prev) => (recentCount > prev ? recentCount : prev));
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
 
   // ── 분석마다 타임라인 1포인트 ──────────────────────────────────────────────
   useEffect(() => {
@@ -194,6 +227,7 @@ export default function App() {
 
   // ── ref 동기화 ─────────────────────────────────────────────────────────────
   useEffect(() => { messagesCountRef.current = messages.length; }, [messages.length]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { isAnalyzingRef.current = isAnalyzing; }, [isAnalyzing]);
   useEffect(() => { issuesRef.current = issues; }, [issues]);
   useEffect(() => { runAIAnalysisRef.current = runAIAnalysis; });
@@ -228,7 +262,7 @@ export default function App() {
     try {
       const q = currentId ? `?currentId=${encodeURIComponent(currentId)}` : '';
       const res = await fetch(`/api/sessions/history${q}`);
-      const data = await res.json();
+      const data = await readJson(res, '회차 기록');
       if (!data.success) return;
       setComparison(data.comparison ?? null);
       setAgendaTrends(data.agendaTrends ?? []);
@@ -269,7 +303,7 @@ export default function App() {
 
     try {
       const response = await fetch(`/api/youtube/info?url=${encodeURIComponent(targetUrl)}`);
-      const result = await response.json();
+      const result = await readJson(response, '스트림 연결');
 
       if (!result.success) {
         setErrorMsg(result.error || '유튜브 스트림 연결에 실패했습니다.');
@@ -311,7 +345,7 @@ export default function App() {
       try {
         const pageTokenQuery = currentToken ? `&nextPageToken=${currentToken}` : '';
         const response = await fetch(`/api/youtube/chat?liveChatId=${chatId}${pageTokenQuery}`);
-        const result = await response.json();
+        const result = await readJson(response, '댓글 수집');
 
         if (!result.success) {
           console.error('Fetch comments error:', result.error);
@@ -361,18 +395,29 @@ export default function App() {
       const windowed = messages.filter((m) => new Date(m.timestamp).getTime() >= cutoff);
       const payloadMessages = windowed.length > 0 ? windowed : messages.slice(-200);
 
-      const res = await fetch('/api/analyze/talk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: payloadMessages,
-          streamTitle: streamInfo?.title || '정치·시사 라이브',
-          issues: issuesRef.current,
-          previousCpm: prevCpmRef.current,
-        }),
-      });
+      // 실시간 분석은 40초 주기로 돈다. 요청이 멈춰버리면 다음 주기가 계속 밀리므로
+      // 반드시 상한을 둔다. (fetch는 기본 타임아웃이 없다.)
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), ANALYZE_TIMEOUT_MS);
 
-      const result = await res.json();
+      let res: Response;
+      try {
+        res = await fetch('/api/analyze/talk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: payloadMessages,
+            streamTitle: streamInfo?.title || '정치·시사 라이브',
+            issues: issuesRef.current,
+            previousCpm: prevCpmRef.current,
+          }),
+          signal: ac.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+
+      const result = await readJson(res, 'AI 분석');
       if (result.success && result.analysis) {
         setAnalysis(result.analysis);
         if (result.l1) setL1(result.l1);
@@ -407,18 +452,27 @@ export default function App() {
         payloadMessages = messages.filter((_, i) => i % stride === 0);
       }
 
-      const res = await fetch('/api/report/talk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: payloadMessages,
-          streamTitle: streamInfo?.title || 'LiveChat Radar 정치·시사 라이브',
-          peakCpm,
-          issues: issuesRef.current,
-        }),
-      });
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), REPORT_TIMEOUT_MS);
 
-      const result = await res.json();
+      let res: Response;
+      try {
+        res = await fetch('/api/report/talk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: payloadMessages,
+            streamTitle: streamInfo?.title || 'LiveChat Radar 정치·시사 라이브',
+            peakCpm,
+            issues: issuesRef.current,
+          }),
+          signal: ac.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+
+      const result = await readJson(res, '종료 리포트');
       if (result.success && result.report) {
         setReport(result.report);
         // 리포트가 나오면 이 회차를 기록한다 — 다음 방송의 비교 기준이 된다 (P-11)
@@ -465,7 +519,7 @@ export default function App() {
           authors: [...new Set(messages.map((m) => m.author).filter(Boolean))],
         }),
       });
-      const data = await res.json();
+      const data = await readJson(res, '회차 저장');
       if (data.success) {
         setSuccessMsg(`이 회차를 기록했습니다 (참여자 ${data.saved.participantCount}명).`);
         await loadSessionHistory(id);
@@ -624,9 +678,27 @@ export default function App() {
           </div>
         )}
 
-        {/* 본문 — flex (grid는 Recharts 폭 붕괴를 유발했던 이력이 있다) */}
-        <div className="flex flex-col lg:flex-row gap-3">
-          {/* 좌 */}
+        {/* 본문 — 3열 (grid는 Recharts 폭 붕괴를 유발했던 이력이 있어 flex를 쓴다)
+            좌: 라이브 피드(세로 전체) · 중: 분석 패널 · 우: 리스크·큐·회차 */}
+        <div className="flex flex-col xl:flex-row gap-3 items-stretch">
+          {/* ── 좌: 라이브 피드 — 화면 높이만큼 세로로 길게 ──
+              진행자가 채팅 흐름을 곁눈질로 계속 보면서 분석을 읽어야 하므로
+              작은 상자가 아니라 전체 높이 컬럼으로 둔다. */}
+          <aside className="w-full xl:w-[300px] shrink-0 xl:sticky xl:top-[56px] xl:self-start">
+            <div className="h-[340px] xl:h-[calc(100vh-72px)]">
+              <LiveFeed
+                messages={renderedMessages}
+                totalCount={messages.length}
+                renderCap={FEED_RENDER_CAP}
+                autoScroll={chatAutoScroll}
+                onToggleAutoScroll={() => setChatAutoScroll((v) => !v)}
+                cpm={cpm}
+                isPolling={isPolling}
+              />
+            </div>
+          </aside>
+
+          {/* ── 중: 분석 패널 ── */}
           <div className="flex-1 min-w-0 space-y-3">
             <TalkActionCards cards={analysis?.actionCards ?? []} onCopy={handleCopy} copiedId={copiedId} />
             <div className="flex flex-col sm:flex-row gap-3">
@@ -652,8 +724,8 @@ export default function App() {
             )}
           </div>
 
-          {/* 우 */}
-          <div className="w-full lg:w-[340px] shrink-0 space-y-3">
+          {/* ── 우: 리스크·큐·회차 ── */}
+          <div className="w-full xl:w-[330px] shrink-0 space-y-3">
             {/* 리스크 워치가 최상단 — 채널 방어가 이 제품의 킬러 기능 (P-6) */}
             <RiskWatchPanel
               alerts={analysis?.riskAlerts ?? []}
@@ -679,40 +751,6 @@ export default function App() {
               retentionDays={retentionDays}
             />
 
-            {/* 라이브 피드 */}
-            <section className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
-              <header className="px-3 py-2.5 border-b border-slate-800 flex items-center gap-1.5">
-                <MessageSquare size={15} className="text-slate-400 shrink-0" />
-                <h2 className="text-[11px] font-semibold text-slate-200">라이브 피드</h2>
-                <span className="ml-auto text-[10px] font-mono text-slate-500">
-                  {messages.length > FEED_RENDER_CAP ? `최근 ${FEED_RENDER_CAP} / ${messages.length}` : messages.length}
-                </span>
-                <button
-                  onClick={() => setChatAutoScroll((v) => !v)}
-                  className={`text-[9px] px-1.5 py-0.5 rounded border ${chatAutoScroll ? 'border-cyan-500/40 text-cyan-300' : 'border-slate-700 text-slate-500'}`}
-                >
-                  자동
-                </button>
-              </header>
-              <div ref={chatListRef} className="h-64 overflow-y-auto p-2.5 space-y-1.5 font-mono text-[11px]">
-                {renderedMessages.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center text-slate-600 gap-2">
-                    <MessageSquare size={28} className="text-slate-800" />
-                    <p className="text-[11px] italic">라이브에 연결하면 채팅이 표시됩니다.</p>
-                  </div>
-                ) : (
-                  renderedMessages.map((m) => (
-                    <div key={m.id} className="leading-snug break-words">
-                      <span className={m.isSponsor ? 'text-violet-400' : m.isModerator ? 'text-emerald-400' : 'text-slate-500'}>
-                        {m.author}
-                      </span>
-                      <span className="text-slate-600">: </span>
-                      <span className="text-slate-300">{m.message}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
           </div>
         </div>
       </main>
