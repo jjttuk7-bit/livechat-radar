@@ -627,27 +627,33 @@ app.post('/api/analyze/talk', async (req, res): Promise<any> => {
     });
   }
 
-  // [2] L1 — 키 유무와 무관하게 항상 전량 처리한다. 비용이 0이고,
-  //     시뮬레이터 경로와 AI 경로가 같은 집계를 보게 해 결과 일관성이 유지된다.
-  const stats = runPrefilter(messages, {
-    previousCpm: typeof previousCpm === 'number' ? previousCpm : undefined,
-    issueKeywords: issues.flatMap((i) => i.keywords ?? []),
-    figures: issues.flatMap((i) => i.figures ?? []),
-  });
-
-  // [3] !ai 폴백 (로컬 시뮬레이터) — L1 결과를 재사용해 중복 계산을 피한다
-  if (!ai) {
-    console.log('No OPENAI_API_KEY detected. Using local politics simulator.');
-    return res.json({
-      success: true,
-      analysis: generateSimulatedTalkAnalysis(messages, issues, stats),
-      isSimulated: true,
-      l1: summarizeL1(stats),
-    });
-  }
-
-  // [4] 정상 경로 (OpenAI)
+  // ⚠️ 이 아래 전체를 try로 감싼다.
+  // 이전에는 runPrefilter와 !ai 분기가 try 밖에 있었다. 거기서 예외가 나면 Express
+  // 기본 핸들러가 **평문/HTML 500**을 반환하고, 클라이언트는 JSON 파싱에서 죽는다
+  // ("Unexpected token 'A' ... is not valid JSON"). 원인은 안 보이고 증상만 남는다.
+  // 이 엔드포인트는 어떤 경로로도 JSON만 반환해야 한다.
+  let stats: PrefilterStats | null = null;
   try {
+    // [2] L1 — 키 유무와 무관하게 항상 전량 처리한다. 비용이 0이고,
+    //     시뮬레이터 경로와 AI 경로가 같은 집계를 보게 해 결과 일관성이 유지된다.
+    stats = runPrefilter(messages, {
+      previousCpm: typeof previousCpm === 'number' ? previousCpm : undefined,
+      issueKeywords: issues.flatMap((i) => i.keywords ?? []),
+      figures: issues.flatMap((i) => i.figures ?? []),
+    });
+
+    // [3] !ai 폴백 (로컬 시뮬레이터) — L1 결과를 재사용해 중복 계산을 피한다
+    if (!ai) {
+      console.log('No OPENAI_API_KEY detected. Using local politics simulator.');
+      return res.json({
+        success: true,
+        analysis: generateSimulatedTalkAnalysis(messages, issues, stats),
+        isSimulated: true,
+        l1: summarizeL1(stats),
+      });
+    }
+
+    // [4] 정상 경로 (OpenAI)
     const cacheKey = buildTalkCacheKey(streamTitle || '', issues, stats);
     const cached = getCachedAnalysis(cacheKey);
     if (cached) {
@@ -660,7 +666,12 @@ app.post('/api/analyze/talk', async (req, res): Promise<any> => {
       });
     }
 
-    const sample = stratifiedSample(stats, { size: 80 });
+    // 실시간 분석은 **40초 분석 주기 안에 끝나야 한다.** 응답이 그보다 오래 걸리면
+    // 다음 주기와 겹치고, 서버리스 환경에서는 함수 시간 제한에 걸려 평문 오류가 나간다.
+    // 리스크·요구 후보는 전수 포함이 원칙이지만, 정치 채널처럼 후보가 폭증하는 상황에서는
+    // 프롬프트가 무한정 커진다. 실시간 경로에서만 전수 상한을 낮게 잡는다.
+    // (방송 전체를 대표해야 하는 종료 리포트는 상한을 크게 유지한다.)
+    const sample = stratifiedSample(stats, { size: 80, mandatoryCap: 90 });
 
     // [A-1] system은 정적 프롬프트 그대로 (Prompt Caching prefix). user에는 호출별 데이터만.
     const userPrompt = `현재 방송 제목: "${streamTitle || '정치·시사 라이브'}"
@@ -690,14 +701,24 @@ ${formatSampleForPrompt(sample)}`;
 
     return res.json({ success: true, analysis: parsed, l1: summarizeL1(stats) });
   } catch (err: any) {
-    console.error('OpenAI talk analysis internal failure:', err);
-    // Graceful recovery: 로컬 시뮬레이터로 즉시 복구하여 앱 흐름을 막지 않는다.
-    return res.json({
-      success: true,
-      analysis: generateSimulatedTalkAnalysis(messages, issues, stats),
-      l1: summarizeL1(stats),
-      errorInfo: `정치·시사 AI 분석 중 지연이 발생하여 가상 분석 시스템으로 즉시 자동 복구되었습니다: ${err.message}`,
-    });
+    console.error('Talk analysis failure:', err?.stack || err);
+    // Graceful recovery: 어떤 실패든 JSON으로 돌려주고 시뮬레이터로 복구한다.
+    // L1까지 실패했으면 stats 없이 시뮬레이터를 돌린다(내부에서 다시 계산).
+    try {
+      return res.json({
+        success: true,
+        analysis: generateSimulatedTalkAnalysis(messages, issues, stats ?? undefined),
+        l1: stats ? summarizeL1(stats) : null,
+        errorInfo: `AI 분석에 실패해 로컬 분석으로 복구했습니다: ${err?.message ?? err}`,
+      });
+    } catch (fallbackErr: any) {
+      // 시뮬레이터마저 실패 — 그래도 JSON을 돌려준다. 평문 500은 절대 내보내지 않는다.
+      console.error('Simulator fallback also failed:', fallbackErr?.stack || fallbackErr);
+      return res.status(500).json({
+        success: false,
+        error: `분석 처리 중 오류가 발생했습니다: ${err?.message ?? err}`,
+      });
+    }
   }
 });
 
@@ -725,23 +746,24 @@ app.post('/api/report/talk', async (req, res): Promise<any> => {
     return res.status(400).json({ success: false, error: '분석에 필요한 댓글 목록이 비어 있습니다.' });
   }
 
-  // 리포트도 L1을 거친다. 앞에서 150건을 자르는 방식(구 쇼핑 리포트)은 3시간 방송에서
-  // 도입부만 보게 되어 방송 전체를 대표하지 못한다.
-  const stats = runPrefilter(messages, {
-    issueKeywords: issues.flatMap((i) => i.keywords ?? []),
-    figures: issues.flatMap((i) => i.figures ?? []),
-  });
-
-  if (!ai) {
-    console.log('No OPENAI_API_KEY detected. Using local politics report simulator.');
-    return res.json({
-      success: true,
-      report: generateSimulatedTalkReport(messages, issues, peakCpm || 0),
-      isSimulated: true,
-    });
-  }
-
+  // analyze와 같은 이유로 전체를 try로 감싼다 — 평문 500을 절대 내보내지 않는다.
   try {
+    // 리포트도 L1을 거친다. 앞에서 150건을 자르는 방식(구 쇼핑 리포트)은 3시간 방송에서
+    // 도입부만 보게 되어 방송 전체를 대표하지 못한다.
+    const stats = runPrefilter(messages, {
+      issueKeywords: issues.flatMap((i) => i.keywords ?? []),
+      figures: issues.flatMap((i) => i.figures ?? []),
+    });
+
+    if (!ai) {
+      console.log('No OPENAI_API_KEY detected. Using local politics report simulator.');
+      return res.json({
+        success: true,
+        report: generateSimulatedTalkReport(messages, issues, peakCpm || 0),
+        isSimulated: true,
+      });
+    }
+
     // 종료 리포트는 방송 전체를 대표해야 하므로 표본을 넉넉히 잡는다.
     const sample = stratifiedSample(stats, { size: 150 });
 
@@ -770,12 +792,20 @@ ${formatSampleForPrompt(sample)}`;
     parsed.generatedAt = new Date().toLocaleString();
     return res.json({ success: true, report: parsed });
   } catch (err: any) {
-    console.error('OpenAI talk report generation internal failure:', err);
-    return res.json({
-      success: true,
-      report: generateSimulatedTalkReport(messages, issues, peakCpm || 0),
-      errorInfo: `정치·시사 리포트 생성 중 지연이 발생하여 가상 리포트로 자동 복구되었습니다: ${err.message}`,
-    });
+    console.error('Talk report failure:', err?.stack || err);
+    try {
+      return res.json({
+        success: true,
+        report: generateSimulatedTalkReport(messages, issues, peakCpm || 0),
+        errorInfo: `리포트 생성에 실패해 로컬 리포트로 복구했습니다: ${err?.message ?? err}`,
+      });
+    } catch (fallbackErr: any) {
+      console.error('Report simulator fallback also failed:', fallbackErr?.stack || fallbackErr);
+      return res.status(500).json({
+        success: false,
+        error: `리포트 생성 중 오류가 발생했습니다: ${err?.message ?? err}`,
+      });
+    }
   }
 });
 

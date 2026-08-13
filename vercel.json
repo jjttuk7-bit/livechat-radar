@@ -5,7 +5,8 @@
   "framework": null,
   "functions": {
     "api/index.ts": {
-      "maxDuration": 30
+      "_comment": "실시간 분석은 보통 15~25초. 바쁜 채널에서는 더 걸리므로 여유를 둔다. 시간 초과 시 Vercel이 평문 오류를 반환해 클라이언트 JSON 파싱이 깨진다.",
+      "maxDuration": 60
     }
   },
   "rewrites": [
